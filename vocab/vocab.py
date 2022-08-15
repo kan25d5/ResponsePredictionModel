@@ -57,7 +57,7 @@ class Vocab(object):
 
         print("テキストリストをID列リストへ変換します...")
         output_t = []
-        for sentence in tqdm(sentences):
+        for sentence in sentences:
             output_t.append(self.encode(sentence))
         return output_t
 
