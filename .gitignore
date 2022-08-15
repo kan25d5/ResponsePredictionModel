@@ -130,3 +130,4 @@ dmypy.json
 
 # user edited
 assets/
+lightning_logs/
