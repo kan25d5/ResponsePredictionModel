@@ -1,17 +1,19 @@
-from vocab.twitter_vocab import TwitterVocab
+from utilities.make_sentimet_corpus import main
+from utilities.training_functions import get_corpus
 
-vocab = TwitterVocab()
-vocab.load_char2id_pkl()
+# main()
 
 
-from utilities.training_functions import get_corpus, get_dataset, get_dataloader
+def display_corpus(sentimet_type: str):
+    messages, responses = get_corpus(sentimet_type)
+    for idx, (msg, res) in enumerate(zip(messages, responses)):
+        print(msg)
+        print(f"\t->{res}")
+        if idx > 5:
+            break
+    print("-" * 50)
 
-X, y = get_corpus()
-all_dataset = get_dataset(X, y, vocab)
-all_dataloader = get_dataloader(all_dataset)
-train_dataloader = all_dataloader[0]
 
-for x, y in train_dataloader:
-    print(x)
-    print(y)
-    break
+for label in ["pos", "neg", "neu"]:
+    print("label : " + label)
+    display_corpus(label)
