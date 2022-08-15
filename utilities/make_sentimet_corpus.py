@@ -11,7 +11,7 @@ def main():
     messages, responses = get_corpus()
 
     err_msg = "発話サイズと応答サイズが一致しない．"
-    assert len(messages) == len(responses)
+    assert len(messages) == len(responses), err_msg
 
     results = {
         "pos": {"X": [], "y": []},
