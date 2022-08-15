@@ -7,7 +7,7 @@ from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 class TwitterDataset(Dataset):
     def __init__(
-        self, messages, responses, vocab: TwitterVocab, transform=None, maxlen=140
+        self, messages, responses, vocab: TwitterVocab, transform=None, maxlen=80
     ) -> None:
         self.messages = messages
         self.responses = responses
