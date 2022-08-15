@@ -22,23 +22,33 @@ class Vocab(object):
     def _convert_wakati_sentence(self, sentence: str):
         return self.parser(sentence)
 
-    def _convert_wakati_sentences(self, sentences: List[str]):
+    def _convert_wakati_sentences(self, sentences: List[str], verbose=False):
         new_sentences = []
-        print("テキストリストを分かち書きします...")
-        for sentence in tqdm(sentences):
+
+        if verbose:
+            sentences = tqdm(sentences)
+            print("テキストリストを分かち書きします...")
+
+        for sentence in sentences:
             sentence = self._convert_wakati_sentence(sentence)
             new_sentences.append(sentence)
+
         return new_sentences
 
-    def fit(self, sentences: List[str], is_wakati=True):
-        if not is_wakati:
-            sentences = self._convert_wakati_sentences(sentences)
-
-        print("語彙からIDへのマップ辞書を更新します...")
-        for sentnce in tqdm(sentences):
+    def _set_tokens(self, sentences: List[str]):
+        for sentnce in sentences:
             for token in sentnce.split():
                 self._words.append(token)
+        return self._words
 
+    def fit(self, sentences: List[str], is_wakati=True, verbose=False):
+        if not is_wakati:
+            sentences = self._convert_wakati_sentences(sentences, verbose)
+        if verbose:
+            print("語彙からIDへのマップ辞書を更新します...")
+            sentences = tqdm(sentences)
+
+        self._words = self._set_tokens(sentences)
         counter = Counter(self._words).most_common(self.max_vocab)
         self._words = [c[0] for c in counter]
 
@@ -51,12 +61,14 @@ class Vocab(object):
 
         self.id2char = {v: k for k, v in self.char2id.items()}
 
-    def transform(self, sentences: List[str], is_wakati=True):
+    def transform(self, sentences: List[str], is_wakati=True, verbose=False):
+        output_t = []
+
         if not is_wakati:
             sentences = self._convert_wakati_sentences(sentences)
+        if verbose:
+            sentences = tqdm(sentences)
 
-        print("テキストリストをID列リストへ変換します...")
-        output_t = []
         for sentence in sentences:
             output_t.append(self.encode(sentence))
         return output_t

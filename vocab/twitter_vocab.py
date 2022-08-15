@@ -9,7 +9,9 @@ class TwitterVocab(object):
         self.vocab_X = Vocab(max_vocab)
         self.vocab_y = Vocab(max_vocab)
 
-    def fit(self, messages: List[str], responses: List[str], is_wakati=True):
+    def fit(
+        self, messages: List[str], responses: List[str], is_wakati=True, verbose=False
+    ):
         """
         語彙からIDへのマップ辞書を適合します．
 
@@ -26,17 +28,17 @@ class TwitterVocab(object):
         # それぞれのVocabクラスで語彙を適合
         print("語彙からIDへのマップ辞書を作成します...")
         print("発話リストを適合：")
-        self.vocab_X.fit(messages, is_wakati=is_wakati)
+        self.vocab_X.fit(messages, is_wakati=is_wakati, verbose=verbose)
         print("応答リストを適合：")
-        self.vocab_y.fit(responses, is_wakati=is_wakati)
+        self.vocab_y.fit(responses, is_wakati=is_wakati, verbose=verbose)
 
-    def transform(self, batch):
+    def transform(self, batch, is_wakati=True, verbose=False):
         """ バッチ化した発話／応答データに対し，ID列変換します． """
         X = [item["source"] for item in batch]
         y = [item["target"] for item in batch]
 
-        X = self.vocab_X.transform(X)
-        y = self.vocab_y.transform(y)
+        X = self.vocab_X.transform(X, is_wakati, verbose=verbose)
+        y = self.vocab_y.transform(y, is_wakati, verbose=verbose)
 
         return X, y
 

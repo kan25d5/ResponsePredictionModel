@@ -15,3 +15,4 @@ dataloader = DataLoader(dataset, batch_size=10, collate_fn=dataset.collate_fn)
 for x, y in dataloader:
     print(x)
     print(y)
+    break
