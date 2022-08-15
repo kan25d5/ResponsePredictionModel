@@ -2,10 +2,18 @@ from typing import List
 from utilities.utility_functions import load_json
 
 
-def get_corpus(sentiment_type: str = "normal"):
+def get_corpus(sentiment_type: str = "normal", maxlen=80):
+    X, y = [], []
     filepath = f"assets/{sentiment_type}.json"
     corpus = load_json(filepath)
-    return corpus["X"], corpus["y"]
+
+    for msg, res in zip(corpus["X"], corpus["y"]):
+        if len(msg) > maxlen or len(res) > maxlen:
+            continue
+        X.append(msg)
+        y.append(res)
+
+    return X, y
 
 
 def get_dataset(X, y, vocab, train_size=0.8, val_size=0.7, maxlen=140, transform=None):
