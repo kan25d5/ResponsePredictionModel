@@ -1,5 +1,6 @@
 MAXLEN = 120
-BATCH_SIZE = 80
+BATCH_SIZE = 100
+EPOCH_SIZE = 50
 
 
 def main():
@@ -34,6 +35,7 @@ def main():
         shuffle=False,
         collate_fn=all_dataset[0].collate_fn,
         num_workers=52 - 6,
+        pin_memory=True,
     )
     val_dataloader = DataLoader(
         all_dataset[1],
@@ -41,6 +43,7 @@ def main():
         shuffle=False,
         collate_fn=all_dataset[1].collate_fn,
         num_workers=52 - 6,
+        pin_memory=True,
     )
     test_dataloader = DataLoader(
         all_dataset[2],
@@ -48,6 +51,7 @@ def main():
         shuffle=True,
         collate_fn=all_dataset[2].collate_fn,
         num_workers=52 - 6,
+        pin_memory=True,
     )
 
     # --------------------------------------
@@ -61,13 +65,24 @@ def main():
     model = Seq2Seq(input_dim, output_dim, maxlen=MAXLEN + 8)
 
     # --------------------------------------
+    # コールバックの定義
+    # --------------------------------------
+    from pytorch_lightning.callbacks import EarlyStopping
+
+    callbacks = [EarlyStopping(monitor="val_loss")]
+
+    # --------------------------------------
     # Modelの適合
     # --------------------------------------
+    import torch
     import pytorch_lightning as pl
     from multiprocessing import freeze_support
 
+    torch.backends.cudnn.benchmark = True
     freeze_support()
-    trainer = pl.Trainer(strategy="ddp", accelerator="gpu", devices=2,)
+    trainer = pl.Trainer(
+        strategy="ddp", accelerator="gpu", devices=2, callbacks=callbacks, max_epochs=EPOCH_SIZE
+    )
     trainer.fit(model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
     trainer.test(model, test_dataloader)
 
