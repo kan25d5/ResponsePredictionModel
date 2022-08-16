@@ -127,5 +127,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# user edited
 assets/
 lightning_logs/
