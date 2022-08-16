@@ -6,6 +6,7 @@ from torchmetrics import Accuracy
 from typing import Tuple
 from torch import Tensor
 from layers.seq2seq_transformer_layers import PositionalEncoding, TokenEmbedding
+from vocab.twitter_vocab import TwitterVocab
 
 
 class Seq2Seq(pl.LightningModule):
@@ -13,6 +14,7 @@ class Seq2Seq(pl.LightningModule):
         self,
         src_vocab_size: int,
         tgt_vocab_size: int,
+        vocab: TwitterVocab,
         num_layers=6,
         emb_size=512,
         maxlen=140,
@@ -25,6 +27,7 @@ class Seq2Seq(pl.LightningModule):
         # フィールド値の定義
         self.src_vocab_size = src_vocab_size
         self.tgt_vocab_size = tgt_vocab_size
+        self.vocab = vocab
         self.emb_size = emb_size
         self.d_model = emb_size
         self.nhead = self.d_model // 64
@@ -104,69 +107,68 @@ class Seq2Seq(pl.LightningModule):
 
     def training_step(self, batch: Tuple[Tensor, Tensor], batch_idx: int):
         x, t = batch
-        batch_size = x.size(0)
         tgt_out = t[1:, :]
         preds = self.forward(x, t)
 
         loss = self.compute_loss(preds, tgt_out)
-        self.log(
-            "train_loss",
-            loss,
-            on_step=False,
-            batch_size=batch_size,
-            on_epoch=True,
-            prog_bar=True,
-            logger=True,
-        )
+        self.log("train_loss", value=loss)
 
-        return loss
+        return {"loss": loss, "source": x, "target": t, "preds": preds}
+
+    def training_epoch_end(self, training_outputs) -> None:
+        print("display predicted response during training data : ")
+        batch = training_outputs[-1]
+        source = [item["source"] for item in batch[-5:-1]]
+        target = [item["target"] for item in batch[-5:-1]]
+        preds = [item["preds"] for item in batch[-5:-1]]
+
+        for src, tgt, pred in zip(source, target, preds):
+            src = self.vocab.vocab_X.decode(src.tolist())
+            tgt = self.vocab.vocab_y.decode(tgt.tolist())
+            pred = self.vocab.vocab_y.decode(pred.argmax(-1).tolist())
+
+            print(f"source : {src}")
+            print(f"target : {tgt}")
+            print(f"predict : {pred}")
+            print("-" * 20)
 
     def validation_step(self, batch: Tuple[Tensor, Tensor], batch_idx: int):
         x, t = batch
-        batch_size = x.size(0)
         tgt_out = t[1:, :]
         preds = self.forward(x, t)
 
         loss = self.compute_loss(preds, tgt_out)
+        self.log("val_loss", value=loss)
 
-        self.log(
-            "val_loss",
-            value=loss,
-            batch_size=batch_size,
-            on_step=True,
-            on_epoch=True,
-            prog_bar=False,
-            logger=True,
-        )
+        return {"loss": loss, "source": x, "target": t, "preds": preds}
 
-        return loss
+    def validation_epoch_end(self, validation_outputs):
+        batch = validation_outputs[-1]
+        if len(batch) <= 9:
+            return
+
+        print("display predicted response during validation data : ")
+        source = [item["source"] for item in batch[-5:-1]]
+        target = [item["target"] for item in batch[-5:-1]]
+        preds = [item["preds"] for item in batch[-5:-1]]
+
+        for src, tgt, pred in zip(source, target, preds):
+            src = self.vocab.vocab_X.decode(src.tolist())
+            tgt = self.vocab.vocab_y.decode(tgt.tolist())
+            pred = self.vocab.vocab_y.decode(pred.argmax(-1).tolist())
+
+            print(f"source : {src}")
+            print(f"target : {tgt}")
+            print(f"predict : {pred}")
+            print("-" * 20)
 
     def test_step(self, batch: Tuple[Tensor, Tensor], batch_idx: int):
         x, t = batch
-        batch_size = x.size(0)
         tgt_out = t[1:, :]
         preds = self.forward(x, t)
 
         loss = self.compute_loss(preds, tgt_out)
-        acc = self.compute_acc(preds, tgt_out, self.test_acc)
-        self.log(
-            "test_loss",
-            loss,
-            batch_size=batch_size,
-            on_step=True,
-            on_epoch=True,
-            prog_bar=True,
-            logger=True,
-        )
-        self.log(
-            "test_acc",
-            acc,
-            batch_size=batch_size,
-            on_step=True,
-            on_epoch=True,
-            prog_bar=True,
-            logger=True,
-        )
+        self.log("test_loss", value=loss)
 
         return loss
 
