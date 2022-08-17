@@ -1,9 +1,13 @@
-MAXLEN = 120
-BATCH_SIZE = 100
+# --------------------------------------
+# 定数
+# --------------------------------------
+MAXLEN = 80
+BATCH_SIZE = 50
 EPOCH_SIZE = 50
+VOCAB_SIZE = 10000
 
 
-def main():
+def train():
     import os
 
     # Reference:
@@ -13,46 +17,19 @@ def main():
     os.environ["OMP_NUM_THREADS"] = "1"
 
     # --------------------------------------
-    # Vocab / all_datasetの作成
+    # Vocab / DataLoaderの作成
     # --------------------------------------
     from vocab.twitter_vocab import TwitterVocab
-    from utilities.training_functions import get_corpus, get_dataset
+    from utilities.training_functions import get_dataloader_pipeline
 
     vocab = TwitterVocab()
     vocab.load_char2id_pkl()
+    vocab.reduce_vocabulary(VOCAB_SIZE)
 
-    X, y = get_corpus()
-    all_dataset = get_dataset(X, y, vocab, maxlen=MAXLEN)
-
-    # --------------------------------------
-    # DataLoaderの作成
-    # --------------------------------------
-    from torch.utils.data import DataLoader
-
-    train_dataloader = DataLoader(
-        all_dataset[0],
-        batch_size=BATCH_SIZE,
-        shuffle=False,
-        collate_fn=all_dataset[0].collate_fn,
-        num_workers=52 - 6,
-        pin_memory=True,
-    )
-    val_dataloader = DataLoader(
-        all_dataset[1],
-        batch_size=BATCH_SIZE,
-        shuffle=False,
-        collate_fn=all_dataset[1].collate_fn,
-        num_workers=52 - 6,
-        pin_memory=True,
-    )
-    test_dataloader = DataLoader(
-        all_dataset[2],
-        batch_size=1,
-        shuffle=True,
-        collate_fn=all_dataset[2].collate_fn,
-        num_workers=52 - 6,
-        pin_memory=True,
-    )
+    all_dataloader = get_dataloader_pipeline(vocab, maxlen=MAXLEN, batch_size=BATCH_SIZE)
+    train_dataloader = all_dataloader[0]
+    val_dataloader = all_dataloader[1]
+    test_dataloader = all_dataloader[2]
 
     # --------------------------------------
     # Modelの作成
@@ -62,7 +39,7 @@ def main():
     input_dim = len(vocab.vocab_X.char2id)
     output_dim = len(vocab.vocab_y.char2id)
 
-    model = Seq2Seq(input_dim, output_dim, maxlen=MAXLEN + 8)
+    model = Seq2Seq(input_dim, output_dim, vocab, maxlen=MAXLEN + 8)
 
     # --------------------------------------
     # コールバックの定義
@@ -88,4 +65,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    train()

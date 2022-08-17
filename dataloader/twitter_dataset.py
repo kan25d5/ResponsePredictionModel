@@ -6,14 +6,10 @@ from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 
 class TwitterDataset(Dataset):
-    def __init__(
-        self, messages, responses, vocab: TwitterVocab, transform=None, maxlen=80
-    ) -> None:
+    def __init__(self, messages, responses, maxlen=80) -> None:
         self.messages = messages
         self.responses = responses
-        self.vocab = vocab
         self.maxlen = maxlen
-        self.transform = transform
 
         err_msg = "発話リストと応答リストのサイズが一致しない．"
         assert len(self.messages) == len(self.responses), err_msg
@@ -27,13 +23,6 @@ class TwitterDataset(Dataset):
 
         msg = self.messages[index]
         res = self.responses[index]
-
-        msg = self.vocab.vocab_X.encode(msg)
-        res = self.vocab.vocab_y.encode(res)
-
-        if self.transform is not None:
-            msg = self.transform(msg)
-            res = self.transform(res)
 
         return {"source": msg, "target": res}
 

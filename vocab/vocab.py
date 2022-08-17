@@ -22,59 +22,47 @@ class Vocab(object):
     def _convert_wakati_sentence(self, sentence: str):
         return self.parser(sentence)
 
-    def _convert_wakati_sentences(self, sentences: List[str], verbose=False):
-        new_sentences = []
-
-        if verbose:
-            sentences = tqdm(sentences)
-            print("テキストリストを分かち書きします...")
-
+    def _set_tokens(self, sentences: List[str], is_wakati: bool):
         for sentence in sentences:
-            sentence = self._convert_wakati_sentence(sentence)
-            new_sentences.append(sentence)
-
-        return new_sentences
-
-    def _set_tokens(self, sentences: List[str]):
-        for sentnce in sentences:
-            for token in sentnce.split():
+            if not is_wakati:
+                sentence = self.parser(sentence)
+            for token in sentence.split():
                 self._words.append(token)
         return self._words
 
     def fit(self, sentences: List[str], is_wakati=True, verbose=False):
-        if not is_wakati:
-            sentences = self._convert_wakati_sentences(sentences, verbose)
         if verbose:
             print("語彙からIDへのマップ辞書を更新します...")
             sentences = tqdm(sentences)
 
-        self._words = self._set_tokens(sentences)
+        self._words = self._set_tokens(sentences, is_wakati)
         counter = Counter(self._words).most_common(self.max_vocab)
         self._words = [c[0] for c in counter]
 
         self.char2id = {
-            token: len(self.special_tokens) + idx
-            for idx, token in enumerate(self._words)
+            token: len(self.special_tokens) + idx for idx, token in enumerate(self._words)
         }
         for idx, token in enumerate(self.special_tokens):
             self.char2id[token] = idx
 
         self.id2char = {v: k for k, v in self.char2id.items()}
 
-    def transform(self, sentences: List[str], is_wakati=True, verbose=False):
+    def transform(self, sentences: List[str], is_wakati=True, verbose=False, bos=True, eos=True):
         output_t = []
 
-        if not is_wakati:
-            sentences = self._convert_wakati_sentences(sentences)
         if verbose:
             sentences = tqdm(sentences)
 
         for sentence in sentences:
-            output_t.append(self.encode(sentence))
+            output_t.append(self.encode(sentence, is_wakati))
         return output_t
 
-    def encode(self, sentence: str, bos=True, eos=True):
+    def encode(self, sentence: str, is_wakati: bool, bos=True, eos=True):
         output_e = []
+
+        if not is_wakati:
+            sentence = self.parser(sentence)
+
         for token in sentence.split():
             if token in self.char2id.keys():
                 output_e.append(self.char2id[token])
