@@ -9,9 +9,7 @@ class TwitterVocab(object):
         self.vocab_X = Vocab(max_vocab)
         self.vocab_y = Vocab(max_vocab)
 
-    def fit(
-        self, messages: List[str], responses: List[str], is_wakati=True, verbose=False
-    ):
+    def fit(self, messages: List[str], responses: List[str], is_wakati=True, verbose=False):
         """
         語彙からIDへのマップ辞書を適合します．
 
@@ -41,6 +39,28 @@ class TwitterVocab(object):
         y = self.vocab_y.transform(y, is_wakati, verbose=verbose)
 
         return X, y
+
+    def _reduce_vocabulary_vocab_xy(self, vocab: Vocab, top_words: int):
+        new_char2id = {}
+
+        for i in range(top_words):
+            token = vocab.id2char[i]
+            new_char2id[token] = i
+
+        vocab.char2id = new_char2id
+        vocab.id2char = {v: k for k, v in vocab.char2id.items()}
+
+    def reduce_vocabulary(self, top_word=10000):
+        """ 所持語彙数を削減する． """
+
+        self._reduce_vocabulary_vocab_xy(self.vocab_X, top_word)
+        self._reduce_vocabulary_vocab_xy(self.vocab_y, top_word)
+
+        print("reduce vocabulary : ")
+        print(f"\t{self.max_vocab} -> {len(self.vocab_X.char2id)}")
+        print(f"\t{self.max_vocab} -> {len(self.vocab_y.char2id)}")
+
+        self.max_vocab = top_word
 
     def save_char2id_pkl(self, filepath="assets/char2id.model"):
         """ 語彙からIDへのマップ辞書を保存します． """
