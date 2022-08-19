@@ -32,23 +32,32 @@ def get_dataset(X, y, train_size=0.8, val_size=0.7, maxlen=140, transform=None):
     return all_dataset
 
 
-def get_dataloader(all_dataset, batch_size=100):
+def get_dataloader(all_dataset, batch_size=100, num_workers=52, pin_memory=True):
     from torch.utils.data import DataLoader
 
     train_dataloader = DataLoader(
         all_dataset[0],
         batch_size=batch_size,
         shuffle=False,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
         collate_fn=all_dataset[0].collate_fn,
     )
     val_dataloader = DataLoader(
         all_dataset[1],
         batch_size=batch_size,
         shuffle=False,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
         collate_fn=all_dataset[1].collate_fn,
     )
     test_dataloader = DataLoader(
-        all_dataset[2], batch_size=1, shuffle=False, collate_fn=all_dataset[2].collate_fn,
+        all_dataset[2],
+        batch_size=1,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+        collate_fn=all_dataset[2].collate_fn,
     )
     all_dataloader = [train_dataloader, val_dataloader, test_dataloader]
     return all_dataloader
@@ -62,6 +71,7 @@ def get_dataloader_pipeline(
     val_size=0.7,
     transform=None,
     batch_size=100,
+    num_workers=52,
     verbose=False,
 ):
     from sklearn.model_selection import train_test_split
@@ -102,6 +112,6 @@ def get_dataloader_pipeline(
     all_dataset = [train_dataset, val_dataset, test_dataset]
 
     # DataLoaderの作成
-    all_dataloader = get_dataloader(all_dataset, batch_size)
+    all_dataloader = get_dataloader(all_dataset,batch_size=batch_size, num_workers=num_workers)
 
     return all_dataloader

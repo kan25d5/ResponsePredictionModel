@@ -106,14 +106,21 @@ class Seq2Seq(pl.LightningModule):
         return acc(preds, target)
 
     def training_step(self, batch: Tuple[Tensor, Tensor], batch_idx: int):
+        self.train()
+
         x, t = batch
         tgt_out = t[1:, :]
         preds = self.forward(x, t)
 
         loss = self.compute_loss(preds, tgt_out)
-        self.log("train_loss", value=loss)
+        self.log("train_loss", loss, on_step=False, on_epoch=True)
 
-        return {"loss": loss, "source": x, "target": t, "preds": preds}
+        return {
+            "loss": loss,
+            "source": x.to("cpu"),
+            "target": t.to("cpu"),
+            "preds": preds.to("cpu"),
+        }
 
     def training_epoch_end(self, training_outputs) -> None:
         print("display predicted response during training data : ")
@@ -136,11 +143,15 @@ class Seq2Seq(pl.LightningModule):
         x, t = batch
         tgt_out = t[1:, :]
         preds = self.forward(x, t)
-
         loss = self.compute_loss(preds, tgt_out)
-        self.log("val_loss", value=loss)
 
-        return {"loss": loss, "source": x, "target": t, "preds": preds}
+        self.log("val_loss", loss, on_step=False, on_epoch=True)
+        return {
+            "loss": loss.to("cpu"),
+            "source": x.to("cpu"),
+            "target": t.to("cpu"),
+            "preds": preds.to("cpu"),
+        }
 
     def validation_epoch_end(self, validation_outputs):
         batch = validation_outputs[-1]
