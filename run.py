@@ -75,6 +75,8 @@ def train(args):
 
     vocab = TwitterVocab()
     vocab.load_char2id_pkl()
+    # char2id.modelは80000語彙の辞書データを持つため，
+    # 語彙削減する．
     vocab.reduce_vocabulary(vocab_size)
 
     all_dataloader = get_dataloader_pipeline(
@@ -82,8 +84,10 @@ def train(args):
         sentiment_type=sentiment_type,
         maxlen=maxlen,
         batch_size=batch_size,
-        verbose=True,
         num_workers=NUM_WORKER,
+        verbose=True,
+        # is_saved=True,
+        is_load=True,
     )
     train_dataloader = all_dataloader[0]
     val_dataloader = all_dataloader[1]
