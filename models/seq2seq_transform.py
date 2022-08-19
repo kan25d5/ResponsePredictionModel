@@ -14,7 +14,6 @@ class Seq2Seq(pl.LightningModule):
         self,
         src_vocab_size: int,
         tgt_vocab_size: int,
-        vocab: TwitterVocab,
         num_layers=6,
         emb_size=512,
         maxlen=140,
@@ -27,7 +26,6 @@ class Seq2Seq(pl.LightningModule):
         # フィールド値の定義
         self.src_vocab_size = src_vocab_size
         self.tgt_vocab_size = tgt_vocab_size
-        self.vocab = vocab
         self.emb_size = emb_size
         self.d_model = emb_size
         self.nhead = self.d_model // 64
@@ -122,23 +120,6 @@ class Seq2Seq(pl.LightningModule):
             "preds": preds.to("cpu"),
         }
 
-    def training_epoch_end(self, training_outputs) -> None:
-        print("display predicted response during training data : ")
-        batch = training_outputs[-1]
-        source = [item["source"] for item in batch[-5:-1]]
-        target = [item["target"] for item in batch[-5:-1]]
-        preds = [item["preds"] for item in batch[-5:-1]]
-
-        for src, tgt, pred in zip(source, target, preds):
-            src = self.vocab.vocab_X.decode(src.tolist())
-            tgt = self.vocab.vocab_y.decode(tgt.tolist())
-            pred = self.vocab.vocab_y.decode(pred.argmax(-1).tolist())
-
-            print(f"source : {src}")
-            print(f"target : {tgt}")
-            print(f"predict : {pred}")
-            print("-" * 20)
-
     def validation_step(self, batch: Tuple[Tensor, Tensor], batch_idx: int):
         x, t = batch
         tgt_out = t[1:, :]
@@ -147,31 +128,11 @@ class Seq2Seq(pl.LightningModule):
 
         self.log("val_loss", loss, on_step=False, on_epoch=True)
         return {
-            "loss": loss.to("cpu"),
+            "loss": loss,
             "source": x.to("cpu"),
             "target": t.to("cpu"),
             "preds": preds.to("cpu"),
         }
-
-    def validation_epoch_end(self, validation_outputs):
-        batch = validation_outputs[-1]
-        if len(batch) <= 9:
-            return
-
-        print("display predicted response during validation data : ")
-        source = [item["source"] for item in batch[-5:-1]]
-        target = [item["target"] for item in batch[-5:-1]]
-        preds = [item["preds"] for item in batch[-5:-1]]
-
-        for src, tgt, pred in zip(source, target, preds):
-            src = self.vocab.vocab_X.decode(src.tolist())
-            tgt = self.vocab.vocab_y.decode(tgt.tolist())
-            pred = self.vocab.vocab_y.decode(pred.argmax(-1).tolist())
-
-            print(f"source : {src}")
-            print(f"target : {tgt}")
-            print(f"predict : {pred}")
-            print("-" * 20)
 
     def test_step(self, batch: Tuple[Tensor, Tensor], batch_idx: int):
         x, t = batch

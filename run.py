@@ -102,14 +102,15 @@ def train(args):
     input_dim = len(vocab.vocab_X.char2id)
     output_dim = len(vocab.vocab_y.char2id)
 
-    model = Seq2Seq(input_dim, output_dim, vocab, maxlen=maxlen + 8)
+    model = Seq2Seq(input_dim, output_dim)
 
     # --------------------------------------
     # コールバックの定義
     # --------------------------------------
     from pytorch_lightning.callbacks import EarlyStopping
+    from utilities.callbacks import DisplayGeneratedResponses
 
-    callbacks = [EarlyStopping(monitor="val_loss")]
+    callbacks = [EarlyStopping(monitor="val_loss"), DisplayGeneratedResponses(vocab)]
 
     # --------------------------------------
     # Modelの適合
