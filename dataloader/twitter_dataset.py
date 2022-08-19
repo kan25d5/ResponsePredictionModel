@@ -3,6 +3,7 @@ import dill
 import torch
 from torch.utils.data import Dataset
 from tensorflow.keras.preprocessing.sequence import pad_sequences
+from vocab.twitter_vocab import TwitterVocab
 
 
 class TwitterDataset(Dataset):
@@ -44,14 +45,18 @@ class TwitterDataset(Dataset):
             dill.dump(self.responses, f)
             dill.dump(self.maxlen, f)
 
-    def collate_fn(self, batch):
-        X = [item["source"] for item in batch]
-        y = [item["target"] for item in batch]
 
-        X = pad_sequences(X, maxlen=self.maxlen, padding="post")
-        y = pad_sequences(y, maxlen=self.maxlen, padding="post")
+def collate_fn(batch, vocab: TwitterVocab, maxlen: int):
+    X = [item["source"] for item in batch]
+    y = [item["target"] for item in batch]
 
-        X = torch.LongTensor(X).t()
-        y = torch.LongTensor(y).t()
+    X = vocab.vocab_X.transform(X, is_wakati=False)
+    y = vocab.vocab_y.transform(y, is_wakati=False)
 
-        return X, y
+    X = pad_sequences(X, maxlen=maxlen, padding="post")
+    y = pad_sequences(y, maxlen=maxlen, padding="post")
+
+    X = torch.LongTensor(X).t()
+    y = torch.LongTensor(y).t()
+
+    return X, y

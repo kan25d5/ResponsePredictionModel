@@ -10,6 +10,7 @@ STRATEGY = "ddp"
 ACCELERATOR = "gpu"
 DEVICES = 2
 NUM_WORKER = 52 // 2
+PIN_MEMORY = False
 
 
 # --------------------------------------
@@ -86,8 +87,8 @@ def train(args):
         batch_size=batch_size,
         num_workers=NUM_WORKER,
         verbose=True,
-        # is_saved=True,
-        is_load=True,
+        pin_memory=PIN_MEMORY,
+        is_saved=True,
     )
     train_dataloader = all_dataloader[0]
     val_dataloader = all_dataloader[1]

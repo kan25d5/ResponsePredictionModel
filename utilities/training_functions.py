@@ -25,7 +25,9 @@ def get_corpus(sentiment_type: str = "normal", maxlen=80, transform=None):
     return X, y
 
 
-def get_dataloader(all_dataset, batch_size=100, num_workers=52, pin_memory=True):
+def get_dataloader(
+    all_dataset, vocab, maxlen: int, batch_size=100, num_workers=52, pin_memory=True
+):
     """ 
     all_dataset:List[TwitterDataset]を受け取り，all_dataloader:List[DataLoader]を返す．
     all_datasetは，train/val/testの順で作成されたTwitterDataset型のインスタンスを持つリスト． 
@@ -36,22 +38,23 @@ def get_dataloader(all_dataset, batch_size=100, num_workers=52, pin_memory=True)
     """
 
     from torch.utils.data import DataLoader
+    from dataloader.twitter_dataset import collate_fn
 
     train_dataloader = DataLoader(
         all_dataset[0],
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
-        # pin_memory=pin_memory,
-        collate_fn=all_dataset[0].collate_fn,
+        pin_memory=pin_memory,
+        collate_fn=lambda batch: collate_fn(batch, vocab, maxlen),
     )
     val_dataloader = DataLoader(
         all_dataset[1],
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
-        # pin_memory=pin_memory,
-        collate_fn=all_dataset[1].collate_fn,
+        pin_memory=pin_memory,
+        collate_fn=lambda batch: collate_fn(batch, vocab, maxlen),
     )
     test_dataloader = DataLoader(
         all_dataset[2],
@@ -59,7 +62,7 @@ def get_dataloader(all_dataset, batch_size=100, num_workers=52, pin_memory=True)
         shuffle=False,
         num_workers=num_workers,
         # pin_memory=pin_memory,
-        collate_fn=all_dataset[2].collate_fn,
+        collate_fn=lambda batch: collate_fn(batch, vocab, maxlen),
     )
     all_dataloader = [train_dataloader, val_dataloader, test_dataloader]
     return all_dataloader
@@ -75,21 +78,17 @@ def __get_dataloader_pipline_no_load(
     verbose=False,
     is_saved=False,
 ):
-    def display_Xy(X, y, data_label: str, count=4):
-        print(f"check {data_label} data :")
-        for idx, (msg, res) in enumerate(zip(X, y)):
-            print(msg)
-            print(f"\t->{msg}")
-            if idx >= count:
-                break
-
     from sklearn.model_selection import train_test_split
     from dataloader.twitter_dataset import TwitterDataset
 
+    # --------------------------------------
     # 発話／応答リストを取得
+    # --------------------------------------
     messages, responses = get_corpus(sentiment_type, maxlen, transform)
 
+    # --------------------------------------
     # データセットの分割
+    # --------------------------------------
     X_train, X_train_other, y_train, y_train_other = train_test_split(
         messages, responses, train_size=train_size
     )
@@ -97,26 +96,33 @@ def __get_dataloader_pipline_no_load(
         X_train_other, y_train_other, train_size=val_size
     )
 
+    # --------------------------------------
     # データの中身を確認
+    # --------------------------------------
+    def display_Xy(X, y, data_label: str, count=4):
+        print(f"check {data_label} data :")
+        for idx, (msg, res) in enumerate(zip(X, y)):
+            print(msg)
+            print(f"\t->{res}")
+            if idx >= count:
+                break
+
     if verbose:
         display_Xy(X_train, y_train, "train")
         display_Xy(X_val, y_val, "val")
         display_Xy(X_test, y_test, "test")
 
-    # テキストをベクトル化
-    X_train = vocab.vocab_X.transform(X_train, is_wakati=False, verbose=verbose)
-    y_train = vocab.vocab_X.transform(y_train, is_wakati=False, verbose=verbose)
-    X_val = vocab.vocab_X.transform(X_val, is_wakati=False, verbose=verbose)
-    y_val = vocab.vocab_X.transform(y_val, is_wakati=False, verbose=verbose)
-    y_test = vocab.vocab_X.transform(y_test, is_wakati=False, verbose=verbose)
-    X_test = vocab.vocab_X.transform(X_test, is_wakati=False, verbose=verbose)
-
+    # --------------------------------------
     # DataSetの作成
+    # --------------------------------------
     train_dataset = TwitterDataset(X_train, y_train, maxlen)
     val_dataset = TwitterDataset(X_val, y_val, maxlen)
     test_dataset = TwitterDataset(X_test, y_test, maxlen)
     all_dataset = [train_dataset, val_dataset, test_dataset]
 
+    # --------------------------------------
+    # datasetをロードする
+    # --------------------------------------
     if is_saved:
         train_dataset.save_dataset_pkl("train_dataset.pkl")
         val_dataset.save_dataset_pkl("val_dataset.pkl")
@@ -149,6 +155,7 @@ def get_dataloader_pipeline(
     batch_size=100,
     num_workers=52,
     verbose=False,
+    pin_memory=True,
     is_saved=False,
     is_load=False,
 ):
@@ -177,6 +184,8 @@ def get_dataloader_pipeline(
         )
 
     # DataLoaderの作成
-    all_dataloader = get_dataloader(all_dataset, batch_size=batch_size, num_workers=num_workers)
+    all_dataloader = get_dataloader(
+        all_dataset, vocab, maxlen, batch_size, num_workers, pin_memory
+    )
 
     return all_dataloader
