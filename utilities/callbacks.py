@@ -3,20 +3,28 @@ from pytorch_lightning.callbacks import Callback
 
 
 class DisplayGeneratedResponses(Callback):
-    def __init__(self, vocab) -> None:
+    def __init__(self, vocab, train_dataloader) -> None:
         super().__init__()
 
         self.vocab = vocab
-        self._train_batch_list = []
+        self.train_dataloader = train_dataloader
+
+    def on_train_epoch_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+        print("Generated responses in train data : ")
+        for idx, (x, t) in enumerate(self.train_dataloader):
+            pred = pl_module(x.to("cuda")).to("cpu")
+            self.__display_responces(x, t, pred)
+            if idx >= 5:
+                break
 
     def __display_responces(self, source, target, preds):
         src = self.vocab.vocab_X.decode(source.tolist())
         tgt = self.vocab.vocab_y.decode(target.tolist())
         pred = self.vocab.vocab_y.decode(preds.argmax(-1).tolist())
 
-        print(f"source : {src}")
-        print(f"target : {tgt}")
-        print(f"predict : {pred}")
+        print(f"\tsource : {src}")
+        print(f"\ttarget : {tgt}")
+        print(f"\tpredict : {pred}")
         print("-" * 20)
 
     def __display_responces_batch(self, batch):
@@ -27,17 +35,6 @@ class DisplayGeneratedResponses(Callback):
 
         for src, tgt, pred in zip(source, target, preds):
             self.__display_responces(src, tgt, pred)
-
-    def on_train_batch_end(
-        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", outputs, batch, batch_idx,
-    ) -> None:
-        self._train_batch_list.append(outputs)
-
-    def on_train_epoch_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        print("Generated responses in train data : ")
-        self.__display_responces_batch(self._train_batch_list)
-        del self._train_batch_list
-        self._train_batch_list = []
 
     def on_validation_batch_end(
         self,

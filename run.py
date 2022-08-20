@@ -2,14 +2,14 @@
 # デフォルト値の設定
 # --------------------------------------
 MAXLEN = 80
-BATCH_SIZE = 20
+BATCH_SIZE = 80
 EPOCH_SIZE = 50
-VOCAB_SIZE = 8000
+VOCAB_SIZE = 10000
 
 STRATEGY = "ddp"
 ACCELERATOR = "gpu"
 DEVICES = 2
-NUM_WORKER = 52 // 2
+NUM_WORKER = (52 // 1) + 1
 PIN_MEMORY = False
 
 
@@ -93,6 +93,7 @@ def train(args):
     train_dataloader = all_dataloader[0]
     val_dataloader = all_dataloader[1]
     test_dataloader = all_dataloader[2]
+    callback_train_dataloader = all_dataloader[3]
 
     # --------------------------------------
     # Modelの作成
@@ -110,7 +111,10 @@ def train(args):
     from pytorch_lightning.callbacks import EarlyStopping
     from utilities.callbacks import DisplayGeneratedResponses
 
-    callbacks = [EarlyStopping(monitor="val_loss"), DisplayGeneratedResponses(vocab)]
+    callbacks = [
+        EarlyStopping(monitor="val_loss"),
+        DisplayGeneratedResponses(vocab, callback_train_dataloader),
+    ]
 
     # --------------------------------------
     # Modelの適合
@@ -129,6 +133,8 @@ def train(args):
     )
     trainer.fit(model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
     trainer.test(model, test_dataloader)
+
+    torch.save(model.state_dict(), "assets/base.pth")
 
 
 def main():

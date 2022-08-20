@@ -64,7 +64,20 @@ def get_dataloader(
         # pin_memory=pin_memory,
         collate_fn=lambda batch: collate_fn(batch, vocab, maxlen),
     )
-    all_dataloader = [train_dataloader, val_dataloader, test_dataloader]
+    train_dataloader_callback = DataLoader(
+        all_dataset[0],
+        batch_size=1,
+        shuffle=True,
+        num_workers=1,
+        pin_memory=pin_memory,
+        collate_fn=lambda batch: collate_fn(batch, vocab, maxlen),
+    )
+    all_dataloader = [
+        train_dataloader,
+        val_dataloader,
+        test_dataloader,
+        train_dataloader_callback,
+    ]
     return all_dataloader
 
 
@@ -174,6 +187,10 @@ def get_dataloader_pipeline(
     - verbose
     - is_saved: bool ロードしたデータセットのpklデータをセーブする
     - is_load: bool データセットのpklをロードする．
+
+    Return 
+    -----------------------
+    List[DataLoader] = [train_dataloader, val_dataloader, test_dataloader, callback_train_dataloader]
     """
 
     if is_load:
