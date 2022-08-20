@@ -136,12 +136,7 @@ class Seq2Seq(pl.LightningModule):
         loss = self.compute_loss(preds, tgt_out)
         self.log("train_loss", loss, on_step=False, on_epoch=True)
 
-        return {
-            "loss": loss,
-            "source": x.to("cpu"),
-            "target": t.to("cpu"),
-            "preds": preds.to("cpu"),
-        }
+        return loss
 
     def validation_step(self, batch: Tuple[Tensor, Tensor], batch_idx: int):
         x, t = batch
@@ -150,12 +145,7 @@ class Seq2Seq(pl.LightningModule):
         loss = self.compute_loss(preds, tgt_out)
 
         self.log("val_loss", loss, on_step=False, on_epoch=True)
-        return {
-            "loss": loss,
-            "source": x.to("cpu"),
-            "target": t.to("cpu"),
-            "preds": preds.to("cpu"),
-        }
+        return loss
 
     def test_step(self, batch: Tuple[Tensor, Tensor], batch_idx: int):
         x, t = batch

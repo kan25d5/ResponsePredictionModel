@@ -9,7 +9,7 @@ VOCAB_SIZE = 10000
 STRATEGY = "ddp"
 ACCELERATOR = "gpu"
 DEVICES = 2
-NUM_WORKER = (52 // 1) + 1
+NUM_WORKER = 26
 PIN_MEMORY = False
 
 
@@ -44,6 +44,10 @@ parser.add_argument("-len", "--maxlen", help=help_maxlen, type=int, default=MAXL
 parser.add_argument("-bt", "--batch_size", help=help_batch_size, type=int, default=BATCH_SIZE)
 parser.add_argument("-ep", "--max_epoch", help=help_max_epoch, type=int, default=EPOCH_SIZE)
 parser.add_argument("-vs", "--vocab_size", help=help_vocab_size, type=int, default=VOCAB_SIZE)
+parser.add_argument("--strategy", type=str, default=STRATEGY)
+parser.add_argument("--accelerator", type=str, default=ACCELERATOR)
+parser.add_argument("--devices", type=int, default=DEVICES)
+parser.add_argument("--num_worker", type=int, default=NUM_WORKER)
 
 
 def train(args):
@@ -55,6 +59,10 @@ def train(args):
     batch_size = args.batch_size
     max_epoch = args.max_epoch
     vocab_size = args.vocab_size
+    strategy = args.strategy
+    accelerator = args.accelerator
+    devices = args.devices
+    num_worker = args.num_worker
 
     # --------------------------------------
     # おまじない
@@ -85,7 +93,7 @@ def train(args):
         sentiment_type=sentiment_type,
         maxlen=maxlen,
         batch_size=batch_size,
-        num_workers=NUM_WORKER,
+        num_workers=num_worker,
         verbose=True,
         pin_memory=PIN_MEMORY,
         is_saved=True,
@@ -93,7 +101,6 @@ def train(args):
     train_dataloader = all_dataloader[0]
     val_dataloader = all_dataloader[1]
     test_dataloader = all_dataloader[2]
-    callback_train_dataloader = all_dataloader[3]
 
     # --------------------------------------
     # Modelの作成
@@ -109,11 +116,9 @@ def train(args):
     # コールバックの定義
     # --------------------------------------
     from pytorch_lightning.callbacks import EarlyStopping
-    from utilities.callbacks import DisplayGeneratedResponses
 
     callbacks = [
         EarlyStopping(monitor="val_loss"),
-        DisplayGeneratedResponses(vocab, callback_train_dataloader),
     ]
 
     # --------------------------------------
@@ -125,9 +130,9 @@ def train(args):
 
     freeze_support()
     trainer = pl.Trainer(
-        strategy=STRATEGY,
-        accelerator=ACCELERATOR,
-        devices=DEVICES,
+        strategy=strategy,
+        accelerator=accelerator,
+        devices=devices,
         callbacks=callbacks,
         max_epochs=max_epoch,
     )
