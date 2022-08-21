@@ -80,10 +80,9 @@ class Seq2Seq(pl.LightningModule):
             out = out.transpose(0, 1)
             prob = self.generater(out[:, -1])
             _, next_word = torch.max(prob, dim=1)
+            next_word = next_word.item()
 
-            next_tensor = torch.ones(1, 1, device=self.device)
-            next_tensor = next_tensor.type_as(source.data).fill_(next_word)
-            ys = torch.cat([ys, next_tensor], dim=0)
+            ys = torch.cat([ys, torch.ones(1, 1).type_as(source.data).fill_(next_word)], dim=0,)
 
             if next_word == 2:
                 break
