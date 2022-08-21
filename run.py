@@ -118,7 +118,7 @@ def train(args):
     from pytorch_lightning.callbacks import EarlyStopping
 
     callbacks = [
-        EarlyStopping(monitor="val_loss"),
+        EarlyStopping(monitor="val_loss", mode="min", patience=3, verbose=True),
     ]
 
     # --------------------------------------
