@@ -129,5 +129,6 @@ dmypy.json
 .pyre/
 
 # user edited
+logs/
 assets/
 lightning_logs/

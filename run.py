@@ -3,8 +3,8 @@
 # --------------------------------------
 MAXLEN = 80
 BATCH_SIZE = 80
-EPOCH_SIZE = 50
-VOCAB_SIZE = 10000
+EPOCH_SIZE = 200
+VOCAB_SIZE = 40000
 
 STRATEGY = "ddp"
 ACCELERATOR = "gpu"
@@ -110,16 +110,25 @@ def train(args):
     input_dim = len(vocab.vocab_X.char2id)
     output_dim = len(vocab.vocab_y.char2id)
 
-    model = Seq2Seq(input_dim, output_dim)
+    model = Seq2Seq(input_dim, output_dim, maxlen=maxlen)
 
     # --------------------------------------
-    # コールバックの定義
+    # 出力ファイル名の定義
+    # --------------------------------------
+    filename = "ST:{}B:{}_E:{}_ML:{}_VS:{}".format(
+        sentiment_type, batch_size, max_epoch, maxlen, vocab_size
+    )
+
+    # --------------------------------------
+    # コールバック／ロガーの定義
     # --------------------------------------
     from pytorch_lightning.callbacks import EarlyStopping
+    from pytorch_lightning.loggers import TensorBoardLogger
 
     callbacks = [
         EarlyStopping(monitor="val_loss", mode="min", patience=3, verbose=True),
     ]
+    logger = TensorBoardLogger(os.path.join(os.getcwd(), "logs/"), filename)
 
     # --------------------------------------
     # Modelの適合
@@ -135,11 +144,12 @@ def train(args):
         devices=devices,
         callbacks=callbacks,
         max_epochs=max_epoch,
+        logger=logger,
     )
     trainer.fit(model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
     trainer.test(model, test_dataloader)
 
-    torch.save(model.state_dict(), "assets/base.pth")
+    torch.save(model.state_dict(), f"assets/{filename}_base.pth")
 
 
 def predict(args):
@@ -197,8 +207,8 @@ def predict(args):
     input_dim = len(vocab.vocab_X.char2id)
     output_dim = len(vocab.vocab_y.char2id)
 
-    model = Seq2Seq(input_dim, output_dim)
-    model.load_state_dict(torch.load("assets/base.pth"))
+    model = Seq2Seq(input_dim, output_dim, maxlen=80)
+    model.load_state_dict(torch.load("assets/ST:normalB:80_E:50_ML:80_VS:18000_base.pth"))
 
     # --------------------------------------
     # Modelの作成
