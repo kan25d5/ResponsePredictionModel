@@ -6,6 +6,7 @@ from torchmetrics import Accuracy
 from typing import Tuple
 from torch import Tensor
 from layers.seq2seq_transformer_layers import PositionalEncoding, TokenEmbedding
+from vocab.twitter_vocab import TwitterVocab
 
 
 class Seq2Seq(pl.LightningModule):
@@ -53,13 +54,7 @@ class Seq2Seq(pl.LightningModule):
         # 評価手法
         self.test_acc = Accuracy()
 
-    def encode(self, src: Tensor, src_mask: Tensor):
-        return self.encoder(self.pe(self.src_tok_emb(src)), src_mask)
-
-    def decode(self, tgt: Tensor, memory: Tensor, tgt_mask: Tensor):
-        return self.decoder(self.pe(self.tgt_tok_emb(tgt)), memory, tgt_mask)
-
-    def forward(self, source: Tensor, target: Tensor):
+    def _training(self, source: Tensor, target: Tensor):
         tgt_input = target[:-1, :]
         src_emb_pe = self.pe(self.src_tok_emb(source))
         tgt_emb_pe = self.pe(self.tgt_tok_emb(tgt_input))
@@ -72,6 +67,34 @@ class Seq2Seq(pl.LightningModule):
 
         return out
 
+    def _predict(self, source: Tensor):
+        src_mask, _ = self._create_src_mask(source)
+        src_emb_pe = self.pe(self.src_tok_emb(source))
+        memory = self.encoder(src_emb_pe, src_mask)
+
+        ys = torch.ones(1, 1, device=self.device)
+        for i in range(self.maxlen - 1):
+            tgt_mask, _ = self._create_tgt_mask(ys)
+            ys_emb_pe = self.pe(self.tgt_tok_emb(ys))
+            out = self.decoder(ys_emb_pe, memory, tgt_mask)
+            out = out.transpose(0, 1)
+            prob = self.generater(out[:, -1])
+            _, next_word = torch.max(prob, dim=1)
+            next_word = next_word.item()
+
+            ys = torch.cat([ys, torch.ones(1, 1).type_as(source.data).fill_(next_word)], dim=0,)
+
+            if next_word == 2:
+                break
+
+        return ys
+
+    def forward(self, source: Tensor, target: Tensor = None):
+        if target is None:
+            return self._predict(source)
+        else:
+            return self._training(source, target)
+
     def _create_src_mask(self, src: Tensor):
         src_size = src.shape[0]
         src_mask = torch.zeros((src_size, src_size), device=self.device).type(torch.bool)
@@ -82,7 +105,7 @@ class Seq2Seq(pl.LightningModule):
         tgt_size = tgt.shape[0]
         tgt_mask = self._generate_square_subsequent_mask(tgt_size)
         tgt_padding_mask = (tgt == self.padding_idx).transpose(0, 1).to(self.device)
-        return tgt_mask, tgt_padding_mask
+        return tgt_mask.to(self.device), tgt_padding_mask.to(self.device)
 
     def _generate_square_subsequent_mask(self, sz: int):
         mask = torch.triu(torch.ones(sz, sz) == 1).transpose(0, 1)
@@ -103,70 +126,33 @@ class Seq2Seq(pl.LightningModule):
         return acc(preds, target)
 
     def training_step(self, batch: Tuple[Tensor, Tensor], batch_idx: int):
+        self.train()
+
         x, t = batch
-        batch_size = x.size(0)
         tgt_out = t[1:, :]
         preds = self.forward(x, t)
 
         loss = self.compute_loss(preds, tgt_out)
-        self.log(
-            "train_loss",
-            loss,
-            on_step=False,
-            batch_size=batch_size,
-            on_epoch=True,
-            prog_bar=True,
-            logger=True,
-        )
+        self.log("train_loss", loss, on_step=False, on_epoch=True)
 
         return loss
 
     def validation_step(self, batch: Tuple[Tensor, Tensor], batch_idx: int):
         x, t = batch
-        batch_size = x.size(0)
         tgt_out = t[1:, :]
         preds = self.forward(x, t)
-
         loss = self.compute_loss(preds, tgt_out)
 
-        self.log(
-            "val_loss",
-            value=loss,
-            batch_size=batch_size,
-            on_step=True,
-            on_epoch=True,
-            prog_bar=False,
-            logger=True,
-        )
-
+        self.log("val_loss", loss, on_step=False, on_epoch=True)
         return loss
 
     def test_step(self, batch: Tuple[Tensor, Tensor], batch_idx: int):
         x, t = batch
-        batch_size = x.size(0)
         tgt_out = t[1:, :]
         preds = self.forward(x, t)
 
         loss = self.compute_loss(preds, tgt_out)
-        acc = self.compute_acc(preds, tgt_out, self.test_acc)
-        self.log(
-            "test_loss",
-            loss,
-            batch_size=batch_size,
-            on_step=True,
-            on_epoch=True,
-            prog_bar=True,
-            logger=True,
-        )
-        self.log(
-            "test_acc",
-            acc,
-            batch_size=batch_size,
-            on_step=True,
-            on_epoch=True,
-            prog_bar=True,
-            logger=True,
-        )
+        self.log("test_loss", value=loss)
 
         return loss
 
