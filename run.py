@@ -12,6 +12,8 @@ DEVICES = 2
 NUM_WORKER = 26
 PIN_MEMORY = False
 
+LOAD_MODEL = "assets/ST:normalB:80_E:200_ML:80_VS:40000_base.pth"
+
 
 # --------------------------------------
 # ArgumentParserの設定
@@ -208,10 +210,10 @@ def predict(args):
     output_dim = len(vocab.vocab_y.char2id)
 
     model = Seq2Seq(input_dim, output_dim, maxlen=80)
-    model.load_state_dict(torch.load("assets/ST:normalB:80_E:50_ML:80_VS:18000_base.pth"))
+    model.load_state_dict(torch.load(LOAD_MODEL))
 
     # --------------------------------------
-    # Modelの作成
+    # 推論
     # --------------------------------------
 
     for source, target in test_dataloader:
