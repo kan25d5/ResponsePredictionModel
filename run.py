@@ -12,6 +12,8 @@ DEVICES = 2
 NUM_WORKER = 26
 PIN_MEMORY = False
 
+LOAD_MODEL = "assets/ST:normalB:80_E:200_ML:80_VS:40000_base.pth"
+
 
 # --------------------------------------
 # ArgumentParserの設定
@@ -153,13 +155,15 @@ def train(args):
 
 
 def predict(args):
+    import torch
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
     # --------------------------------------
     # コマンドライン引数
     # --------------------------------------
     sentiment_type = args.sentiment_type
     maxlen = args.maxlen
-    batch_size = args.batch_size
-    max_epoch = args.max_epoch
     vocab_size = args.vocab_size
     strategy = args.strategy
     accelerator = args.accelerator
@@ -178,58 +182,48 @@ def predict(args):
     os.environ["OMP_NUM_THREADS"] = "1"
 
     # --------------------------------------
-    # Vocabの作成
+    # Vocab / DataLoaderの作成
     # --------------------------------------
+    print("Vocab / DataLoaderの作成 : ")
     from vocab.twitter_vocab import TwitterVocab
     from utilities.training_functions import get_dataloader_pipeline
 
     vocab = TwitterVocab()
     vocab.load_char2id_pkl()
+    # char2id.modelは80000語彙の辞書データを持つため，
+    # 語彙削減する．
     vocab.reduce_vocabulary(vocab_size)
 
-    all_dataloader = get_dataloader_pipeline(
-        vocab,
-        sentiment_type=sentiment_type,
-        maxlen=maxlen,
-        batch_size=batch_size,
-        num_workers=num_worker,
-        verbose=True,
-        pin_memory=PIN_MEMORY,
-        is_saved=True,
-    )
-    test_dataloader = all_dataloader[2]
     # --------------------------------------
     # Modelの作成
     # --------------------------------------
-    import torch
     from models.seq2seq_transform import Seq2Seq
+    from tensorflow.keras.preprocessing.sequence import pad_sequences
 
     input_dim = len(vocab.vocab_X.char2id)
     output_dim = len(vocab.vocab_y.char2id)
 
-    model = Seq2Seq(input_dim, output_dim, maxlen=80)
-    model.load_state_dict(torch.load("assets/ST:normalB:80_E:50_ML:80_VS:18000_base.pth"))
+    model = Seq2Seq(input_dim, output_dim, maxlen=maxlen).to(device)
+    model.load_state_dict(torch.load(LOAD_MODEL))
 
     # --------------------------------------
-    # Modelの作成
+    # 推論
     # --------------------------------------
+    with torch.no_grad():
+        while True:
+            input_line = input(":")
+            if input_line == "" or input_line == "exit":
+                break
 
-    for source, target in test_dataloader:
-        with torch.no_grad():
-            pred = model(source)
+            X = vocab.vocab_X.encode(input_line, is_wakati=False)
+            X = [[item for item in X]]
+            X = pad_sequences(X, maxlen=maxlen, padding="post")
+            X = torch.LongTensor(X).t().to(device)
 
-        source = [item[0] for item in source.tolist() if item[0] != 0]
-        target = [item[0] for item in target.tolist() if item[0] != 0]
-        pred = [item[0] for item in pred.tolist() if item[0] != 0]
-
-        source = vocab.vocab_X.decode(source)
-        target = vocab.vocab_y.decode(target)
-        pred = vocab.vocab_y.decode(pred)
-
-        print(f"source : {source}")
-        print(f"target : {target}")
-        print(f"pred : {pred}")
-        print("-" * 40)
+            pred = model(X)
+            pred = [item[0] for item in pred.tolist()]
+            pred = vocab.vocab_y.decode(pred)
+            print("pred : {}".format(pred))
 
 
 def main():
