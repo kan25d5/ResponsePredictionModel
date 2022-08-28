@@ -5,6 +5,7 @@ MAXLEN = 80
 BATCH_SIZE = 80
 EPOCH_SIZE = 200
 VOCAB_SIZE = 40000
+N_TRIALS = 100
 
 STRATEGY = "ddp"
 ACCELERATOR = "gpu"
@@ -50,6 +51,7 @@ parser.add_argument("--strategy", type=str, default=STRATEGY)
 parser.add_argument("--accelerator", type=str, default=ACCELERATOR)
 parser.add_argument("--devices", type=int, default=DEVICES)
 parser.add_argument("--num_worker", type=int, default=NUM_WORKER)
+parser.add_argument("--n_trials", type=int, default=N_TRIALS)
 
 
 def train(args):
@@ -124,7 +126,7 @@ def train(args):
     # --------------------------------------
     # コールバック／ロガーの定義
     # --------------------------------------
-    from pytorch_lightning.callbacks import EarlyStopping
+    from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
     from pytorch_lightning.loggers import TensorBoardLogger
 
     callbacks = [
@@ -226,6 +228,153 @@ def predict(args):
             print("pred : {}".format(pred))
 
 
+def optuna(args):
+    import optuna
+    from vocab.twitter_vocab import TwitterVocab
+
+    def objective(trial: optuna.Trial, vocab: TwitterVocab, best_valloss, all_dataloader, args):
+        train_dataloader = all_dataloader[0]
+        val_dataloader = all_dataloader[1]
+        test_dataloader = all_dataloader[2]
+
+        # --------------------------------------
+        # コマンドライン引数
+        # --------------------------------------
+        max_epoch = 20
+        maxlen = 80
+        strategy = args.strategy
+        accelerator = args.accelerator
+        devices = args.devices
+
+        # --------------------------------------
+        # ハイパラ探索
+        # --------------------------------------
+        pe_dropout = trial.suggest_float("pe_dropout", 0.1, 0.6)
+        encoder_dropout = trial.suggest_float("encoder_dropout", 0.1, 0.6)
+        decoder_dropout = trial.suggest_float("decoder_dropout", 0.1, 0.6)
+        encoder_num_layers = trial.suggest_int("encoder_num_layers", 3, 9)
+        decoder_num_layers = trial.suggest_int("decoder_num_layers", 3, 9)
+        learning_ratio = trial.suggest_float("learning_ratio", 1e-7, 1e-4)
+
+        # --------------------------------------
+        # モデルの定義
+        # --------------------------------------
+        from models.seq2seq_transform import Seq2Seq
+
+        input_dim = len(vocab.vocab_X.char2id)
+        output_dim = len(vocab.vocab_y.char2id)
+        model = Seq2Seq(
+            input_dim,
+            output_dim,
+            maxlen=maxlen,
+            pe_dropout=pe_dropout,
+            encoder_dropout=encoder_dropout,
+            decoder_dropout=decoder_dropout,
+            encoder_num_layers=encoder_num_layers,
+            decoder_num_layers=decoder_num_layers,
+            learning_ratio=learning_ratio,
+        )
+
+        # --------------------------------------
+        # コールバック／ロガーの定義
+        # --------------------------------------
+        from pytorch_lightning.callbacks import EarlyStopping
+        from optuna.integration.pytorch_lightning import PyTorchLightningPruningCallback
+
+        callbacks = [
+            EarlyStopping(monitor="val_loss", mode="min", patience=3, verbose=True),
+            PyTorchLightningPruningCallback(trial, monitor="val_loss"),
+        ]
+
+        # --------------------------------------
+        # Modelの適合
+        # --------------------------------------
+        import torch
+        import pytorch_lightning as pl
+        from multiprocessing import freeze_support
+        from utilities.utility_functions import save_json
+
+        freeze_support()
+        trainer = pl.Trainer(
+            strategy=strategy,
+            accelerator=accelerator,
+            devices=devices,
+            callbacks=callbacks,
+            max_epochs=max_epoch,
+        )
+        trainer.fit(model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
+        trainer.test(model, test_dataloader)
+
+        val_loss = trainer.callback_metrics["val_loss"].item()
+        if val_loss < best_valloss:
+            torch.save(model.state_dict(), "assets/model.pth")
+            save_json(trial.params.items(), "assets/best_params.json")
+
+        return val_loss
+
+    # --------------------------------------
+    # おまじない
+    # Reference:
+    # https://stackoverflow.com/questions/30791550/limit-number-of-threads-in-numpy/31622299#31622299
+    # --------------------------------------
+    import os
+
+    os.environ["MKL_NUM_THREADS"] = "1"
+    os.environ["NUMEXPR_NUM_THREADS"] = "1"
+    os.environ["OMP_NUM_THREADS"] = "1"
+
+    # --------------------------------------
+    # コマンドライン引数
+    # --------------------------------------
+    sentiment_type = "neu"
+    vocab_size = 8000
+    maxlen = 80
+    batch_size = args.batch_size
+    num_worker = args.num_worker
+    n_trials = args.n_trials
+
+    # --------------------------------------
+    # Vocab / DataLoaderの作成
+    # --------------------------------------
+    print("Vocab / DataLoaderの作成 : ")
+    from vocab.twitter_vocab import TwitterVocab
+    from utilities.training_functions import get_dataloader_pipeline
+
+    vocab = TwitterVocab()
+    vocab.load_char2id_pkl()
+    # char2id.modelは80000語彙の辞書データを持つため，
+    # 語彙削減する．
+    vocab.reduce_vocabulary(vocab_size)
+
+    all_dataloader = get_dataloader_pipeline(
+        vocab,
+        sentiment_type=sentiment_type,
+        maxlen=maxlen,
+        batch_size=batch_size,
+        num_workers=num_worker,
+        verbose=True,
+        pin_memory=PIN_MEMORY,
+        is_saved=True,
+    )
+
+    # --------------------------------------
+    # trial定義
+    # --------------------------------------
+    best_valloss = 9999.0
+    pruner = optuna.pruners.MedianPruner()
+
+    study = optuna.create_study(direction="minimize", pruner=pruner)
+    study.optimize(
+        lambda trial: objective(trial, vocab, best_valloss, all_dataloader, args),
+        n_trials=n_trials,
+    )
+    trial = study.best_trial
+
+    print("Params : ")
+    for key, value in trial.params.items():
+        print("\t{}:{}".format(key, value))
+
+
 def main():
     args = parser.parse_args()
     run_mode = args.mode
@@ -235,8 +384,7 @@ def main():
     elif run_mode == "pred":
         predict(args)
     elif run_mode == "optuna":
-        # TODO: ハイパーパラメータ探索を行う
-        pass
+        optuna(args)
     else:
         raise ValueError("modeの引数が不正．--helpを参照．")
 
