@@ -1,8 +1,9 @@
 import dill
 from collections import Counter
 from typing import List
-from fugashi import Tagger
+from MeCab import Tagger
 from tqdm import tqdm
+from utilities.constant import MECAB_USER_DICT
 
 
 class Vocab(object):
@@ -11,7 +12,7 @@ class Vocab(object):
         self.char2id = {}
         self.id2char = {}
         self.max_vocab = max_vocab
-        self.parser = Tagger("-Owakati").parse
+        self.parser = Tagger("-Owakati " + MECAB_USER_DICT).parse
 
         self.special_tokens = ["<pad>", "<s>", "</s>", "<unk>"]
         self.pad = self.special_tokens[0]
