@@ -14,7 +14,11 @@ class Seq2Seq(pl.LightningModule):
         self,
         src_vocab_size: int,
         tgt_vocab_size: int,
-        num_layers=6,
+        pe_dropout=0.2,
+        encoder_dropout=0.2,
+        decoder_dropout=0.2,
+        encoder_num_layers=6,
+        decoder_num_layers=6,
         emb_size=512,
         maxlen=140,
         padding_idx=0,
@@ -41,11 +45,15 @@ class Seq2Seq(pl.LightningModule):
         self.tgt_tok_emb = TokenEmbedding(
             tgt_vocab_size, self.emb_size, padding_idx=self.padding_idx
         )
-        self.pe = PositionalEncoding(self.d_model, max_len=self.maxlen, device=self.device)
-        encoder_layer = nn.TransformerEncoderLayer(self.d_model, self.nhead)
-        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers)
-        decoder_layer = nn.TransformerDecoderLayer(self.d_model, self.nhead)
-        self.decoder = nn.TransformerDecoder(decoder_layer, num_layers)
+        self.pe = PositionalEncoding(self.d_model, pe_dropout, maxlen, self.device)
+        encoder_layer = nn.TransformerEncoderLayer(
+            self.d_model, self.nhead, dropout=encoder_dropout
+        )
+        self.encoder = nn.TransformerEncoder(encoder_layer, encoder_num_layers)
+        decoder_layer = nn.TransformerDecoderLayer(
+            self.d_model, self.nhead, dropout=decoder_dropout
+        )
+        self.decoder = nn.TransformerDecoder(decoder_layer, decoder_num_layers)
         self.generater = nn.Linear(self.d_model, tgt_vocab_size)
 
         # 損失関数の定義

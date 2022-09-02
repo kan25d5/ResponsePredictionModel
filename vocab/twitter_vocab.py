@@ -4,7 +4,10 @@ from vocab.vocab import Vocab
 
 
 class TwitterVocab(object):
-    def __init__(self, max_vocab=80000,) -> None:
+    def __init__(
+        self,
+        max_vocab=200000,
+    ) -> None:
         self.max_vocab = max_vocab
         self.vocab_X = Vocab(max_vocab)
         self.vocab_y = Vocab(max_vocab)
@@ -31,7 +34,7 @@ class TwitterVocab(object):
         self.vocab_y.fit(responses, is_wakati=is_wakati, verbose=verbose)
 
     def transform(self, batch, is_wakati=True, verbose=False):
-        """ バッチ化した発話／応答データに対し，ID列変換します． """
+        """バッチ化した発話／応答データに対し，ID列変換します．"""
         X = [item["source"] for item in batch]
         y = [item["target"] for item in batch]
 
@@ -42,6 +45,8 @@ class TwitterVocab(object):
 
     def _reduce_vocabulary_vocab_xy(self, vocab: Vocab, top_words: int):
         new_char2id = {}
+        if len(vocab.char2id) <= top_words:
+            return
 
         for i in range(top_words):
             token = vocab.id2char[i]
@@ -51,7 +56,7 @@ class TwitterVocab(object):
         vocab.id2char = {v: k for k, v in vocab.char2id.items()}
 
     def reduce_vocabulary(self, top_word=10000):
-        """ 所持語彙数を削減する． """
+        """所持語彙数を削減する．"""
 
         self._reduce_vocabulary_vocab_xy(self.vocab_X, top_word)
         self._reduce_vocabulary_vocab_xy(self.vocab_y, top_word)
@@ -63,13 +68,13 @@ class TwitterVocab(object):
         self.max_vocab = top_word
 
     def save_char2id_pkl(self, filepath="assets/char2id.model"):
-        """ 語彙からIDへのマップ辞書を保存します． """
+        """語彙からIDへのマップ辞書を保存します．"""
         with open(filepath, "wb") as f:
             dill.dump(self.vocab_X.char2id, f)
             dill.dump(self.vocab_y.char2id, f)
 
     def load_char2id_pkl(self, filepath="assets/char2id.model"):
-        """ 語彙からIDへのマップ辞書をロードします． """
+        """語彙からIDへのマップ辞書をロードします．"""
         with open(filepath, "rb") as f:
             self.vocab_X.char2id = dill.load(f)
             self.vocab_y.char2id = dill.load(f)
