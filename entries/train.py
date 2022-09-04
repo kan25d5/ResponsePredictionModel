@@ -1,4 +1,4 @@
-CHECK_POINT = "assets/neu.ckpt"
+CHECK_POINT = "/home/s2110184/project/ResponsePredictionModel/assets/neu-v1.ckpt"
 
 sentiment_type: str
 maxlen: int
@@ -75,7 +75,13 @@ def _get_dataloader(vocab):
     from utilities.training_functions import get_corpus, get_dataset, get_dataloader
 
     # データセットを取得
-    X, y = get_corpus(sentiment_type=sentiment_type, maxlen=maxlen)
+    transform = None
+    if sentiment_type == "persona" or sentiment_type == "base":
+        from dataloader.twitter_transform import TwitterTransform
+
+        transform = TwitterTransform()
+
+    X, y = get_corpus(sentiment_type=sentiment_type, maxlen=maxlen, transform=transform)
     all_dataset = get_dataset(X, y, maxlen, data_size)
 
     # データローダーを取得
