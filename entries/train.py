@@ -9,7 +9,7 @@ strategy: str
 accelerator: str
 devices: int
 num_worker: int
-load_vocab: bool
+make_vocab: bool
 data_size: float
 
 
@@ -35,7 +35,7 @@ def _set_fields(args):
     global devices
     global num_worker
     global accelerator
-    global load_vocab
+    global make_vocab
     global data_size
 
     sentiment_type = args.sentiment_type
@@ -47,7 +47,7 @@ def _set_fields(args):
     accelerator = args.accelerator
     devices = args.devices
     num_worker = args.num_worker
-    load_vocab = args.load_vocab
+    make_vocab = args.make_vocab
     data_size = args.data_size
 
 
@@ -57,7 +57,7 @@ def _get_vocab():
 
     vocab = TwitterVocab()
 
-    if load_vocab:
+    if not make_vocab:
         vocab.load_char2id_pkl(CHAR2ID_FILEPATH)
     else:
         from utilities.training_functions import get_corpus

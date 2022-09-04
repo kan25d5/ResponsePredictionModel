@@ -57,7 +57,7 @@ parser.add_argument("--devices", type=int, default=DEVICES)
 parser.add_argument("--num_worker", type=int, default=NUM_WORKER)
 parser.add_argument("--n_trials", type=int, default=N_TRIALS)
 parser.add_argument("--data_size", type=float, default=DATA_SIZE)
-parser.add_argument("--load_vocab", action="store_true")
+parser.add_argument("--make_vocab", action="store_true")
 
 
 def main():
