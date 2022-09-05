@@ -6,10 +6,10 @@ from torchmetrics import Accuracy
 from typing import Tuple
 from torch import Tensor
 from layers.seq2seq_transformer_layers import PositionalEncoding, TokenEmbedding
-from vocab.twitter_vocab import TwitterVocab
+from utilities.decode import training, predict
 
 
-class Seq2Seq(pl.LightningModule):
+class Seq2SeqTransformer(pl.LightningModule):
     def __init__(
         self,
         src_vocab_size: int,
@@ -24,6 +24,8 @@ class Seq2Seq(pl.LightningModule):
         padding_idx=0,
         eos_idx=2,
         learning_ratio=0.0001,
+        beam_size=20,
+        top_k=20,
     ) -> None:
         super().__init__()
 
@@ -37,6 +39,8 @@ class Seq2Seq(pl.LightningModule):
         self.padding_idx = padding_idx
         self.eos_idx = eos_idx
         self.learning_ratio = learning_ratio
+        self.beam_size = beam_size
+        self.top_k = top_k
 
         # レイヤーの定義
         self.src_tok_emb = TokenEmbedding(
@@ -62,46 +66,11 @@ class Seq2Seq(pl.LightningModule):
         # 評価手法
         self.test_acc = Accuracy()
 
-    def _training(self, source: Tensor, target: Tensor):
-        tgt_input = target[:-1, :]
-        src_emb_pe = self.pe(self.src_tok_emb(source))
-        tgt_emb_pe = self.pe(self.tgt_tok_emb(tgt_input))
-        src_mask, src_padding_mask = self._create_src_mask(source)
-        tgt_mask, tgt_padding_mask = self._create_tgt_mask(tgt_input)
-
-        memory = self.encoder(src_emb_pe, src_mask, src_padding_mask)
-        out = self.decoder(tgt_emb_pe, memory, tgt_mask, None, tgt_padding_mask, src_padding_mask)
-        out = self.generater(out)
-
-        return out
-
-    def _predict(self, source: Tensor):
-        src_mask, _ = self._create_src_mask(source)
-        src_emb_pe = self.pe(self.src_tok_emb(source))
-        memory = self.encoder(src_emb_pe, src_mask)
-
-        ys = torch.ones(1, 1, device=self.device)
-        for i in range(self.maxlen - 1):
-            tgt_mask, _ = self._create_tgt_mask(ys)
-            ys_emb_pe = self.pe(self.tgt_tok_emb(ys))
-            out = self.decoder(ys_emb_pe, memory, tgt_mask)
-            out = out.transpose(0, 1)
-            prob = self.generater(out[:, -1])
-            _, next_word = torch.max(prob, dim=1)
-            next_word = next_word.item()
-
-            ys = torch.cat([ys, torch.ones(1, 1).type_as(source.data).fill_(next_word)], dim=0,)
-
-            if next_word == 2:
-                break
-
-        return ys
-
     def forward(self, source: Tensor, target: Tensor = None):
         if target is None:
-            return self._predict(source)
+            return predict(self, source)
         else:
-            return self._training(source, target)
+            return training(self, source, target)
 
     def _create_src_mask(self, src: Tensor):
         src_size = src.shape[0]
@@ -166,4 +135,3 @@ class Seq2Seq(pl.LightningModule):
 
     def configure_optimizers(self):
         return optim.Adam(self.parameters(), lr=self.learning_ratio, betas=(0.9, 0.98), eps=1e-9)
-

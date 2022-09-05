@@ -92,12 +92,12 @@ def _get_dataloader(vocab):
 
 def _get_model(vocab):
     import torch
-    from models.seq2seq_transform import Seq2Seq
+    from models.seq2seq_transform import Seq2SeqTransformer
 
     input_dim = vocab_size
     output_dim = vocab_size
 
-    model = Seq2Seq(input_dim, output_dim, maxlen=maxlen)
+    model = Seq2SeqTransformer(input_dim, output_dim, maxlen=maxlen)
     if sentiment_type == "neg" or sentiment_type == "pos":
         model.load_state_dict(torch.load(CHECK_POINT)["state_dict"])
 
