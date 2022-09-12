@@ -54,9 +54,16 @@ def __get_corpus_from_base(sentiment_type, maxlen, transform):
 
 
 def get_corpus(sentiment_type: str = "neu", maxlen=80, transform=None):
-    """
-    コーパスをロードして発話／応答のリストを返す．\n
-    return X:List[str], y:List[str]
+    """発話と応答のリストを取得する．
+
+    Args:
+        sentiment_type (`str, optional`): コーパスタイプ. Defaults to "neu".
+        maxlen (`int, optional`): 最大系列長. Defaults to 80.
+        transform (`TwitterTransform, optional`): 前処理クラス. Defaults to None.
+
+    Returns:
+        messages (`List[str]`) : 発話リスト
+        responses (`List[str]`) : 応答リスト
     """
     if sentiment_type == "neu" or sentiment_type == "neg" or sentiment_type == "pos":
         return __get_corpus_from_twitter(sentiment_type, maxlen, transform)
@@ -67,8 +74,22 @@ def get_corpus(sentiment_type: str = "neu", maxlen=80, transform=None):
 
 
 def get_dataset(X, y, maxlen: int, data_size: float, train_size=0.8, val_size=0.7):
-    from sklearn.model_selection import train_test_split
+    """データセットのリストを取得する．
+
+    Args:
+        X (`List[str]`): 発話リスト
+        y (`List[str]`): 応答リスト
+        maxlen (`int`): 最大系列長
+        data_size (`float`): 使用するデータサイズの割合
+        train_size (`float, optional`): トレーニングデータセットのサイズ割合. Defaults to 0.8.
+        val_size (`float, optional`): 検証データのサイズ割合．. Defaults to 0.7.
+
+    Returns:
+        all_dataset (`List[TwitterDataset]` ) : [訓練データセット, 検証データセット, テストデータセット]
+    """
+
     from dataloader.twitter_dataset import TwitterDataset
+    from sklearn.model_selection import train_test_split
 
     X, y = X[: int(len(X) * data_size)], y[: int(len(y) * data_size)]
     X_train, X_other, y_train, y_other = train_test_split(X, y, train_size=train_size)
@@ -83,17 +104,19 @@ def get_dataset(X, y, maxlen: int, data_size: float, train_size=0.8, val_size=0.
 
 
 def get_dataloader(all_dataset, vocab, maxlen: int, batch_size: int, num_workers: int):
-    """
-    all_dataset:List[TwitterDataset]を受け取り，all_dataloader:List[DataLoader]を返す．
-    all_datasetは，train/val/testの順で作成されたTwitterDataset型のインスタンスを持つリスト．
-    - パラメーター\n
-    all_dataset : [train_dataset, val_dataset, test_dataset]
-    - 戻り値\n
-    all_dataloader : [train_dataloader, val_dataloader, test_dataloader]
+    """_summary_
+
+    Args:
+        all_dataset (`List[TwitterDataset]`), vocab (`Vocab`),
+        maxlen (`int`), batch_size (`int`), num_workers (`int`)
+
+    Returns:
+        all_dataloader(`List[DataLoader]`): [train_dataloader, val_dataloader
+        , test_dataloader, train_dataloader_callback]
     """
 
-    from torch.utils.data import DataLoader
     from dataloader.twitter_dataset import collate_fn
+    from torch.utils.data import DataLoader
 
     train_dataloader = DataLoader(
         all_dataset[0],

@@ -1,12 +1,12 @@
+from typing import Tuple
+
+import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import pytorch_lightning as pl
-from torchmetrics import Accuracy
-from typing import Tuple
-from torch import Tensor
 from layers.seq2seq_transformer_layers import PositionalEncoding, TokenEmbedding
-from vocab.twitter_vocab import TwitterVocab
+from torch import Tensor
+from torchmetrics import Accuracy
 
 
 class Seq2Seq(pl.LightningModule):
@@ -90,7 +90,10 @@ class Seq2Seq(pl.LightningModule):
             _, next_word = torch.max(prob, dim=1)
             next_word = next_word.item()
 
-            ys = torch.cat([ys, torch.ones(1, 1).type_as(source.data).fill_(next_word)], dim=0,)
+            ys = torch.cat(
+                [ys, torch.ones(1, 1).type_as(source.data).fill_(next_word)],
+                dim=0,
+            )
 
             if next_word == 2:
                 break
@@ -166,4 +169,3 @@ class Seq2Seq(pl.LightningModule):
 
     def configure_optimizers(self):
         return optim.Adam(self.parameters(), lr=self.learning_ratio, betas=(0.9, 0.98), eps=1e-9)
-
