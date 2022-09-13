@@ -144,7 +144,7 @@ class Seq2Seq(pl.LightningModule):
         preds = self.forward(x, t)
 
         loss = self.compute_loss(preds, tgt_out)
-        self.log("train_loss", loss, on_step=False, on_epoch=True)
+        self.log("train_loss", value=loss)
 
         return loss
 
@@ -154,7 +154,7 @@ class Seq2Seq(pl.LightningModule):
         preds = self.forward(x, t)
         loss = self.compute_loss(preds, tgt_out)
 
-        self.log("val_loss", loss, on_step=False, on_epoch=True)
+        self.log("val_loss", value=loss)
         return loss
 
     def test_step(self, batch: Tuple[Tensor, Tensor], batch_idx: int):

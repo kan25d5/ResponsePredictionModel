@@ -9,15 +9,26 @@ class DisplaySystenResponses(Callback):
         self,
         vocab: TwitterVocab,
         dataloader_train_callback: DataLoader,
-        dataloader_test: DataLoader,
+        val_callback_dataloader: DataLoader,
         filename="base",
+        trial=None,
     ) -> None:
         super().__init__()
 
         self.vocab = vocab
+        self.trial = trial
         self.filename = filename
         self.dataloader_train_callback = dataloader_train_callback
-        self.dataloader_test = dataloader_test
+        self.val_callback_dataloader = val_callback_dataloader
+
+        if self.trial is not None:
+            f = open("assets/" + self.filename + ".txt", "a")
+            f.write("=" * 40 + " \n")
+            f.write(f"{self.trial.number}_trial\n")
+            f.write("parameter infomation : \n")
+            for k, v in self.trial.params.items():
+                f.write("\t{} : {:.6f}\n".format(k, v))
+            f.close()
 
     def display_responses(self, dataloader, pl_module):
         results = []
@@ -48,10 +59,11 @@ class DisplaySystenResponses(Callback):
         return results
 
     def save_txt(self, results, trainer, data_type: str):
-        f = open("assets/" + self.filename, "a")
+        f = open("assets/" + self.filename + ".txt", "a")
 
         f.write(f"{trainer.current_epoch} epochs.\n")
         f.write(f"data type {data_type}.\n")
+
         for result in results:
             f.write("source : {}\n".format(result["source"]))
             f.write("target : {}\n".format(result["target"]))
@@ -61,13 +73,15 @@ class DisplaySystenResponses(Callback):
         f.close()
 
     def on_train_epoch_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        print(f"\n\n{trainer.current_epoch}エポックにおける，訓練データ中の応答生成結果:\n")
+        print("\n\n")
+        print(f"{trainer.current_epoch}エポックにおける，訓練データ中の応答生成結果:\n")
         results = self.display_responses(self.dataloader_train_callback, pl_module)
         self.save_txt(results, trainer, "train")
 
     def on_validation_epoch_end(
         self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"
     ) -> None:
-        print(f"\n\n{trainer.current_epoch}エポックにおける，検証データ中の応答生成結果:\n")
-        results = self.display_responses(self.dataloader_test, pl_module)
+        print("\n\n")
+        print(f"{trainer.current_epoch}エポックにおける，検証データ中の応答生成結果:\n")
+        results = self.display_responses(self.val_callback_dataloader, pl_module)
         self.save_txt(results, trainer, "val")

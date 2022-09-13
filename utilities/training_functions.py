@@ -26,15 +26,15 @@ def __get_corpus_from_base(sentiment_type, maxlen, transform):
 
     # persona
     if sentiment_type == "persona" or sentiment_type == "base":
-        assert transform is not None, "personaコーパスにはTwitterTrasnformの指定が必要"
         corpus = load_json("assets/persona.json")
         for msg, res in zip(corpus["X"], corpus["y"]):
             if len(msg) > maxlen or len(res) > maxlen:
                 continue
             if len(msg) <= 1 or len(res) <= 1:
                 continue
-            msg = transform(msg)
-            res = transform(res)
+            if transform is not None:
+                msg = transform(msg)
+                res = transform(res)
             X.append(msg)
             y.append(res)
 
@@ -65,7 +65,12 @@ def get_corpus(sentiment_type: str = "neu", maxlen=80, transform=None):
         messages (`List[str]`) : 発話リスト
         responses (`List[str]`) : 応答リスト
     """
-    if sentiment_type == "neu" or sentiment_type == "neg" or sentiment_type == "pos":
+    if (
+        sentiment_type == "neu"
+        or sentiment_type == "neg"
+        or sentiment_type == "pos"
+        or sentiment_type == "normal"
+    ):
         return __get_corpus_from_twitter(sentiment_type, maxlen, transform)
     elif sentiment_type == "persona" or sentiment_type == "nucc" or sentiment_type == "base":
         return __get_corpus_from_base(sentiment_type, maxlen, transform)
@@ -150,11 +155,20 @@ def get_dataloader(all_dataset, vocab, maxlen: int, batch_size: int, num_workers
         pin_memory=True,
         collate_fn=lambda batch: collate_fn(batch, vocab, maxlen),
     )
+    val_dataloader_callback = DataLoader(
+        all_dataset[1],
+        batch_size=1,
+        shuffle=True,
+        num_workers=1,
+        pin_memory=True,
+        collate_fn=lambda batch: collate_fn(batch, vocab, maxlen),
+    )
 
     all_dataloader = [
         train_dataloader,
         val_dataloader,
         test_dataloader,
         train_dataloader_callback,
+        val_dataloader_callback,
     ]
     return all_dataloader

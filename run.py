@@ -14,6 +14,7 @@ ACCELERATOR = "gpu"
 DEVICES = -1
 NUM_WORKER = 26
 PIN_MEMORY = False
+PATIENCE = 3
 
 LOAD_MODEL = "assets/ST:normalB:80_E:200_ML:80_VS:40000_base.pth"
 
@@ -49,13 +50,14 @@ parser.add_argument(
 )
 parser.add_argument("-len", "--maxlen", help=help_maxlen, type=int, default=MAXLEN)
 parser.add_argument("-bt", "--batch_size", help=help_batch_size, type=int, default=BATCH_SIZE)
-parser.add_argument("-ep", "--max_epoch", help=help_max_epoch, type=int, default=EPOCH_SIZE)
+parser.add_argument("-ep", "--max_epochs", help=help_max_epoch, type=int, default=EPOCH_SIZE)
 parser.add_argument("-vs", "--vocab_size", help=help_vocab_size, type=int, default=VOCAB_SIZE)
 parser.add_argument("--strategy", type=str, default=STRATEGY)
 parser.add_argument("--accelerator", type=str, default=ACCELERATOR)
 parser.add_argument("--devices", type=int, default=DEVICES)
-parser.add_argument("--num_worker", type=int, default=NUM_WORKER)
+parser.add_argument("--num_workers", type=int, default=NUM_WORKER)
 parser.add_argument("--n_trials", type=int, default=N_TRIALS)
+parser.add_argument("--patience", type=int, default=PATIENCE)
 parser.add_argument("--data_size", type=float, default=DATA_SIZE)
 parser.add_argument("--make_vocab", action="store_true")
 
@@ -71,7 +73,9 @@ def main():
     elif run_mode == "pred":
         pass
     elif run_mode == "optuna":
-        pass
+        from entries.optuna import run
+
+        run(args)
     else:
         raise ValueError("modeの引数が不正．--helpを参照．")
 
