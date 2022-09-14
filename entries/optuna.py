@@ -24,7 +24,7 @@ transform = TwitterTransform()
 def _get_corpus(sentiment_type, maxlen, transform=None):
     messages = []
     responses = []
-    corpus = load_json(f"assets/{sentiment_type}.json")
+    corpus = load_json(f"assets/corpus/{sentiment_type}.json")
 
     for msg, res in zip(corpus["X"], corpus["y"]):
         if transform is not None:
@@ -90,9 +90,9 @@ def _set_vocabs(args):
         vocab.fit(snt_msgs, snt_res, verbose=True, is_wakati=False)
         vocab.fit(normal_X, normal_y, verbose=True)
 
-        vocab.save_char2id_pkl(f"assets/{args.sentiment_type}_char2id.model")
+        vocab.save_char2id_pkl(f"assets/char2id/{args.sentiment_type}_char2id.model")
     else:
-        vocab.load_char2id_pkl(f"assets/{args.sentiment_type}_char2id.model")
+        vocab.load_char2id_pkl(f"assets/char2id/{args.sentiment_type}_char2id.model")
 
 
 def _set_dataloader(args):
@@ -158,7 +158,7 @@ def objective(trial: optuna.Trial, args):
     val_callback_dataloader = all_dataloader[4]
 
     logger = TensorBoardLogger(
-        save_dir=os.getcwd(),
+        save_dir=os.path.join(os.getcwd(), "lightning_logs"),
         name="optuna",
         version=f"{trial.number}_trial",
     )
@@ -213,4 +213,4 @@ def run(args):
 
     params = trial.params
     params["best_value"] = trial.value
-    save_json(params, "assets/best_params.json")
+    save_json(params, "assets/best_models/best_params.json")

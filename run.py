@@ -42,6 +42,9 @@ help_maxlen = "応答する系列の最大サイズ．default={}".format(MAXLEN)
 help_batch_size = "バッチサイズ．default={}".format(BATCH_SIZE)
 help_max_epoch = "最大エポックサイズ．default={}".format(EPOCH_SIZE)
 help_vocab_size = "語彙サイズ．default={}".format(VOCAB_SIZE)
+help_params = "ハイパーパラメーター値の指定．jsonファイルへのパス．\
+    pe_dropout, encoder_dropout, decoder_dropout, learning_ratio \
+    encoder_num_layers, decoder_num_layersをDICT形式で指定．"
 
 # コマンドライン引数の追加
 parser.add_argument("mode", help=help_mode, type=str)
@@ -59,6 +62,7 @@ parser.add_argument("--num_workers", type=int, default=NUM_WORKER)
 parser.add_argument("--n_trials", type=int, default=N_TRIALS)
 parser.add_argument("--patience", type=int, default=PATIENCE)
 parser.add_argument("--data_size", type=float, default=DATA_SIZE)
+parser.add_argument("--params", type=str, default="", help=help_params)
 parser.add_argument("--make_vocab", action="store_true")
 
 

@@ -1,16 +1,4 @@
-CHECK_POINT = "/home/s2110184/project/ResponsePredictionModel/assets/neu-v1.ckpt"
-
-sentiment_type: str
-maxlen: int
-batch_size: int
-max_epoch: int
-vocab_size: int
-strategy: str
-accelerator: str
-devices: int
-num_worker: int
-make_vocab: bool
-data_size: float
+CHECK_POINT = "assets/checkpoint/base-v3.ckpt"
 
 
 def _init_boilerplate():
@@ -25,45 +13,24 @@ def _init_boilerplate():
     os.environ["OMP_NUM_THREADS"] = "1"
 
 
-def _set_fields(args):
-    global sentiment_type
-    global maxlen
-    global batch_size
-    global max_epoch
-    global vocab_size
-    global strategy
-    global devices
-    global num_worker
-    global accelerator
-    global make_vocab
-    global data_size
+def _get_vocab(args):
+    from utilities.constant import CHAR2ID_FILEPATH
+    from vocab.twitter_vocab import TwitterVocab
 
+    make_vocab = args.make_vocab
     sentiment_type = args.sentiment_type
     maxlen = args.maxlen
-    batch_size = args.batch_size
-    max_epoch = args.max_epoch
     vocab_size = args.vocab_size
-    strategy = args.strategy
-    accelerator = args.accelerator
-    devices = args.devices
-    num_worker = args.num_worker
-    make_vocab = args.make_vocab
-    data_size = args.data_size
-
-
-def _get_vocab():
-    from vocab.twitter_vocab import TwitterVocab
-    from utilities.constant import CHAR2ID_FILEPATH
 
     vocab = TwitterVocab()
-
     if not make_vocab:
         vocab.load_char2id_pkl(CHAR2ID_FILEPATH)
     else:
         from utilities.training_functions import get_corpus
 
         X, y = get_corpus(sentiment_type=sentiment_type, maxlen=maxlen)
-        X, y = X[: int(len(X) * data_size)], y[: int(len(y) * data_size)]
+        # data_size = args.data_size
+        # X, y = X[: int(len(X) * data_size)], y[: int(len(y) * data_size)]
 
         vocab.fit(X, y, is_wakati=True)
         vocab.reduce_vocabulary(vocab_size)
@@ -71,8 +38,15 @@ def _get_vocab():
     return vocab
 
 
-def _get_dataloader(vocab):
-    from utilities.training_functions import get_corpus, get_dataset, get_dataloader
+def _get_dataloader(args, vocab):
+    from utilities.training_functions import (get_corpus, get_dataloader,
+                                              get_dataset)
+
+    sentiment_type = args.sentiment_type
+    maxlen = args.maxlen
+    data_size = args.data_size
+    batch_size = args.batch_size
+    num_workers = args.num_workers
 
     # データセットを取得
     transform = None
@@ -86,36 +60,64 @@ def _get_dataloader(vocab):
 
     # データローダーを取得
     # -> [train, val, test, callback_train]の4つのDataLoaderを取得する
-    all_dataloader = get_dataloader(all_dataset, vocab, maxlen, batch_size, num_worker)
+    all_dataloader = get_dataloader(all_dataset, vocab, maxlen, batch_size, num_workers)
     return all_dataloader
 
 
-def _get_model(vocab):
+def _get_model(args, vocab):
     import torch
     from models.seq2seq_transform import Seq2Seq
+    from utilities.utility_functions import load_json
+
+    vocab_size = args.vocab_size
+    params = args.params
+    maxlen = args.maxlen
+    sentiment_type = args.sentiment_type
 
     input_dim = vocab_size
     output_dim = vocab_size
 
-    model = Seq2Seq(input_dim, output_dim, maxlen=maxlen)
+    if params == "":
+        model = Seq2Seq(input_dim, output_dim, maxlen=maxlen)
+    else:
+        param = load_json(params)
+        model = Seq2Seq(
+            input_dim,
+            output_dim,
+            maxlen=maxlen,
+            pe_dropout=param["pe_dropout"],
+            encoder_dropout=param["encoder_dropout"],
+            decoder_dropout=param["decoder_dropout"],
+            learning_ratio=param["learning_ratio"],
+            encoder_num_layers=param["encoder_num_layers"],
+            decoder_num_layers=param["decoder_num_layers"],
+        )
+
     if sentiment_type == "neg" or sentiment_type == "pos":
         model.load_state_dict(torch.load(CHECK_POINT)["state_dict"])
 
     return model
 
 
-def _get_trainer(vocab, dataloader_train_callback, dataloader_test):
+def _get_trainer(args, vocab, dataloader_train_callback, dataloader_test):
     import os
+
     import pytorch_lightning as pl
     from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
     from pytorch_lightning.loggers import TensorBoardLogger
     from utilities.callbacks import DisplaySystenResponses
 
+    sentiment_type = args.sentiment_type
+    devices = args.devices
+    max_epochs = args.max_epochs
+    strategy = args.strategy
+    accelerator = args.accelerator
+
     # コールバックの定義
     callbacks = [
         EarlyStopping(monitor="val_loss", mode="min", patience=3, verbose=True),
         ModelCheckpoint(
-            dirpath="assets", filename=sentiment_type, monitor="val_loss", verbose=True
+            dirpath="assets/checkpoint", filename=sentiment_type, monitor="val_loss", verbose=True
         ),
         DisplaySystenResponses(vocab, dataloader_train_callback, dataloader_test),
     ]
@@ -128,7 +130,7 @@ def _get_trainer(vocab, dataloader_train_callback, dataloader_test):
         logger=logger,
         callbacks=callbacks,
         devices=devices,
-        max_epochs=max_epoch,
+        max_epochs=max_epochs,
         strategy=strategy,
         accelerator=accelerator,
     )
@@ -140,24 +142,22 @@ def train(args):
     # おまじないコード
     _init_boilerplate()
 
-    # コマンドライン引数のフィールド値のセット
-    _set_fields(args)
-
     # 語彙マップクラスを取得
-    vocab = _get_vocab()
+    vocab = _get_vocab(args)
 
     # データローダーを取得
-    all_dataloader = _get_dataloader(vocab)
+    all_dataloader = _get_dataloader(args, vocab)
     dataloader_train = all_dataloader[0]
     dataloader_val = all_dataloader[1]
     dataloader_test = all_dataloader[2]
     dataloader_train_callback = all_dataloader[3]
+    dataloader_val_callback = all_dataloader[4]
 
     # モデルを取得
-    model = _get_model(vocab)
+    model = _get_model(args, vocab)
 
     # Trainerの定義
-    trainer = _get_trainer(vocab, dataloader_train_callback, dataloader_test)
+    trainer = _get_trainer(args, vocab, dataloader_train_callback, dataloader_val_callback)
 
     # 学習コード
     trainer.fit(model, train_dataloaders=dataloader_train, val_dataloaders=dataloader_val)

@@ -22,7 +22,7 @@ class DisplaySystenResponses(Callback):
         self.val_callback_dataloader = val_callback_dataloader
 
         if self.trial is not None:
-            f = open("assets/" + self.filename + ".txt", "a")
+            f = open("assets/log/" + self.filename + ".txt", "a")
             f.write("=" * 40 + " \n")
             f.write(f"{self.trial.number}_trial\n")
             f.write("parameter infomation : \n")
@@ -59,7 +59,7 @@ class DisplaySystenResponses(Callback):
         return results
 
     def save_txt(self, results, trainer, data_type: str):
-        f = open("assets/" + self.filename + ".txt", "a")
+        f = open("assets/log/" + self.filename + ".txt", "a")
 
         f.write(f"{trainer.current_epoch} epochs.\n")
         f.write(f"data type {data_type}.\n")
