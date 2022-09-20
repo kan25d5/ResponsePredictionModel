@@ -15,33 +15,42 @@ class BeamNode(object):
         prev_node=None,
         alpha=0.6,
     ) -> None:
+        self.node_list = []
+        self.prob = prob
         self.index = index
+        self.alpha = alpha
         self.next_word = next_word
         self.prev_node = prev_node
-        self.alpha = alpha
         self._set_ys(ys, source)
-
-        if prob == 0:
-            self.score = 0
-        else:
-            self._set_score(prob)
-
-    def _set_score(self, prob):
-        self.score = np.log(prob) / (((6 + self.index) / 6) ** self.alpha)
 
     def _set_ys(self, ys: Tensor, source: Tensor):
         new_ys = torch.ones(1, 1).type_as(source.data).fill_(self.next_word)
         self.ys = torch.cat([ys, new_ys], dim=0)
 
-    def get_score(self):
-        # TODO: スコア関数を再考する
-        score = self.score
-        node = self.prev_node
-        while True:
-            if node is None:
-                break
-            score += node.score
+    def _set_nodelist(self):
+        node = self
+        tmp_node_list = []
+        while node is None:
+            tmp_node_list.append(node)
             node = node.prev_node
+        tmp_node_list.reverse()
+        self.node_list = tmp_node_list
+
+    def _get_current_score(self, node):
+        left = np.log(node.prob)
+        if node.index == 0:
+            return left
+        elif node.next_word == 2:
+            return 0
+        else:
+            rigth = np.power(((6 + node.index) / 6), self.alpha)
+            score = left / rigth
+            return score
+
+    def get_score(self):
+        score = self._get_current_score(self)
+        for node in self.node_list:
+            score += self._get_current_score(node)
         return score
 
     def __str__(self) -> str:
@@ -77,43 +86,35 @@ def beam_decode(model, source: Tensor):
     # ステップ２
     # 最初の単語を最尤推定する
     prob = get_prob(model, ys, memory)
-    next_values, next_word = torch.max(prob, dim=1)
-    next_word = next_word.item()
-    first_node = BeamNode(next_word, ys, source)
-
-    # ステップ３
-    # ２単語目をbeam_size分予測し，その分のbeam_listを作る
-    prev_node = first_node
-    prob = get_prob(model, prev_node.ys, memory)
     next_values, next_words = prob.topk(model.beam_size, dim=1)
 
-    for i in range(model.beam_size):
-        ys = prev_node.ys
-        value = next_values[0][i].item()
-        word = next_words[0][i].item()
-        node = BeamNode(word, ys, source, 1, value, prev_node)
+    for value, word in zip(next_values[0], next_words[0]):
+        value = value.item()
+        word = word.item()
+
+        node = BeamNode(word, ys, source, 0, value)
         node_list.append(node)
 
     # ステップ４
     # ２単語目以降の単語をビームサーチで探索する．
     # 各ノードからbeam_size文の次単語を予測し，最もスコアが高いものだけをノードとして保持（枝切り）
-    
     for word_i in range(model.maxlen - 2):
         for i in range(model.beam_size):
             prev_node = node_list[i]
             ys = prev_node.ys
 
+            top_node: BeamNode
+            top_node_score = 0.0
             prob = get_prob(model, ys, memory)
             next_values, next_words = prob.topk(model.beam_size, dim=1)
 
-            top_node: BeamNode
-            top_score = 0
-            for j in range(model.beam_size):
-                value = next_values[0][j].item()
-                word = next_words[0][j].item()
-                node = BeamNode(word, ys, source, word_i, value, prev_node)
-
-                if node.get_score() > top_score:
+            for value, word in zip(next_values[0], next_words[0]):
+                value = value.item()
+                word = word.item()
+                node = BeamNode(word, ys, source, word_i + 1, value, prev_node)
+                score = node.get_score()
+                if score > top_node_score:
+                    top_node_score = score
                     top_node = node
 
             node_list[i] = top_node

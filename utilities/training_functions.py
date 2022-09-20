@@ -2,7 +2,7 @@ def __get_corpus_from_twitter(sentiment_type, maxlen, transform):
     from utilities.utility_functions import load_json
 
     X, y = [], []
-    filepath = f"assets/{sentiment_type}.json"
+    filepath = f"assets/corpus/{sentiment_type}.json"
     corpus = load_json(filepath)
 
     for msg, res in zip(corpus["X"], corpus["y"]):
@@ -27,7 +27,7 @@ def __get_corpus_from_base(sentiment_type, maxlen, transform):
     # persona
     if sentiment_type == "persona" or sentiment_type == "base":
         assert transform is not None, "personaコーパスにはTwitterTrasnformの指定が必要"
-        corpus = load_json("assets/persona.json")
+        corpus = load_json("assets/corpus/persona.json")
         for msg, res in zip(corpus["X"], corpus["y"]):
             if len(msg) > maxlen or len(res) > maxlen:
                 continue
@@ -40,7 +40,7 @@ def __get_corpus_from_base(sentiment_type, maxlen, transform):
 
     # nucc
     if sentiment_type == "nucc" or sentiment_type == "base":
-        corpus = load_json("assets/nucc.json")
+        corpus = load_json("assets/corpus/nucc.json")
         for msg, res in zip(corpus["X"], corpus["y"]):
             if len(msg) > maxlen or len(res) > maxlen:
                 continue
