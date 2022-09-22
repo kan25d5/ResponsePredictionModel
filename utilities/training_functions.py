@@ -127,11 +127,20 @@ def get_dataloader(all_dataset, vocab, maxlen: int, batch_size: int, num_workers
         pin_memory=True,
         collate_fn=lambda batch: collate_fn(batch, vocab, maxlen),
     )
+    val_dataloader_callback = DataLoader(
+        all_dataset[1],
+        batch_size=1,
+        shuffle=True,
+        num_workers=1,
+        pin_memory=True,
+        collate_fn=lambda batch: collate_fn(batch, vocab, maxlen),
+    )
 
     all_dataloader = [
         train_dataloader,
         val_dataloader,
         test_dataloader,
         train_dataloader_callback,
+        val_dataloader_callback,
     ]
     return all_dataloader

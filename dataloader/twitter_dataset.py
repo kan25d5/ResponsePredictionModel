@@ -48,15 +48,16 @@ class TwitterDataset(Dataset):
 
 def collate_fn(batch, vocab: TwitterVocab, maxlen: int):
     X = [item["source"] for item in batch]
-    y = [item["target"] for item in batch]
-
     X = vocab.vocab_X.transform(X, is_wakati=False)
-    y = vocab.vocab_y.transform(y, is_wakati=False)
-
     X = pad_sequences(X, maxlen=maxlen, padding="post")
-    y = pad_sequences(y, maxlen=maxlen, padding="post")
-
     X = torch.LongTensor(X).t()
+
+    if "target" not in batch.keys():
+        return X
+
+    y = vocab.vocab_y.transform(y, is_wakati=False)
+    y = [item["target"] for item in batch]
+    y = pad_sequences(y, maxlen=maxlen, padding="post")
     y = torch.LongTensor(y).t()
 
     return X, y

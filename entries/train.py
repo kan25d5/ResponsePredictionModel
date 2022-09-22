@@ -51,11 +51,16 @@ def _set_fields(args):
     data_size = args.data_size
 
 
-def _get_vocab():
+def _get_vocab(args):
     from vocab.twitter_vocab import TwitterVocab
     from utilities.constant import CHAR2ID_FILEPATH
 
     vocab = TwitterVocab()
+    sentiment_type = args.sentiment_type
+    maxlen = args.maxlen
+    make_vocab = args.make_vocab
+    data_size = args.data_size
+    vocab_size = args.vocab_size
 
     if not make_vocab:
         vocab.load_char2id_pkl(CHAR2ID_FILEPATH)
