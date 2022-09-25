@@ -149,7 +149,7 @@ def train(args):
     _set_fields(args)
 
     # 語彙マップクラスを取得
-    vocab = _get_vocab()
+    vocab = _get_vocab(args)
 
     # データローダーを取得
     all_dataloader = _get_dataloader(vocab)
