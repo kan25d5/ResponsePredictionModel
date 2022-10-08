@@ -1,8 +1,9 @@
 import os
+
 import dill
 import torch
+from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset
-from tensorflow.keras.preprocessing.sequence import pad_sequences
 from vocab.twitter_vocab import TwitterVocab
 
 
@@ -53,10 +54,15 @@ def collate_fn(batch, vocab: TwitterVocab, maxlen: int):
     X = vocab.vocab_X.transform(X, is_wakati=False)
     y = vocab.vocab_y.transform(y, is_wakati=False)
 
-    X = pad_sequences(X, maxlen=maxlen, padding="post")
-    y = pad_sequences(y, maxlen=maxlen, padding="post")
+    X = [torch.LongTensor(item) for item in X]
+    y = [torch.LongTensor(item) for item in y]
+    assert len(X) == len(y), "Xとyのサイズが一致しない"
 
-    X = torch.LongTensor(X).t()
-    y = torch.LongTensor(y).t()
+    Xy = pad_sequence(X + y, batch_first=True, padding_value=0)
+    X = Xy[: len(X), :]
+    y = Xy[len(X) :, :]
+    assert X.size() == y.size(), "Xとyのサイズが一致しない"
 
+    X = X.t()
+    y = y.t()
     return X, y
