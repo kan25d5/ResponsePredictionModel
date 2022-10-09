@@ -1,4 +1,4 @@
-CHECK_POINT = "assets/checkpoint/base-v3.ckpt"
+CHECK_POINT = "assets/checkpoint/persona.ckpt"
 
 
 def _init_boilerplate():
@@ -39,8 +39,7 @@ def _get_vocab(args):
 
 
 def _get_dataloader(args, vocab):
-    from utilities.training_functions import (get_corpus, get_dataloader,
-                                              get_dataset)
+    from utilities.training_functions import get_corpus, get_dataloader, get_dataset
 
     sentiment_type = args.sentiment_type
     maxlen = args.maxlen
@@ -73,18 +72,20 @@ def _get_model(args, vocab):
     params = args.params
     maxlen = args.maxlen
     sentiment_type = args.sentiment_type
+    beam_size = args.beam_size
 
     input_dim = vocab_size
     output_dim = vocab_size
 
     if params == "":
-        model = Seq2Seq(input_dim, output_dim, maxlen=maxlen)
+        model = Seq2Seq(input_dim, output_dim, maxlen=maxlen, beam_size=beam_size)
     else:
         param = load_json(params)
         model = Seq2Seq(
             input_dim,
             output_dim,
             maxlen=maxlen,
+            beam_size=beam_size,
             pe_dropout=param["pe_dropout"],
             encoder_dropout=param["encoder_dropout"],
             decoder_dropout=param["decoder_dropout"],

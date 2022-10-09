@@ -4,9 +4,11 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from layers.seq2seq_transformer_layers import PositionalEncoding, TokenEmbedding
+from layers.seq2seq_transformer_layers import (PositionalEncoding,
+                                               TokenEmbedding)
 from torch import Tensor
 from torchmetrics import Accuracy
+from utilities.decode import beam_search, greedy_search
 
 
 class Seq2Seq(pl.LightningModule):
@@ -24,6 +26,7 @@ class Seq2Seq(pl.LightningModule):
         padding_idx=0,
         eos_idx=2,
         learning_ratio=0.0001,
+        beam_size=20,
     ) -> None:
         super().__init__()
 
@@ -37,6 +40,7 @@ class Seq2Seq(pl.LightningModule):
         self.padding_idx = padding_idx
         self.eos_idx = eos_idx
         self.learning_ratio = learning_ratio
+        self.beam_size = beam_size
 
         # レイヤーの定義
         self.src_tok_emb = TokenEmbedding(
@@ -76,29 +80,10 @@ class Seq2Seq(pl.LightningModule):
         return out
 
     def _predict(self, source: Tensor):
-        src_mask, _ = self._create_src_mask(source)
-        src_emb_pe = self.pe(self.src_tok_emb(source))
-        memory = self.encoder(src_emb_pe, src_mask)
-
-        ys = torch.ones(1, 1, device=self.device)
-        for i in range(self.maxlen - 1):
-            tgt_mask, _ = self._create_tgt_mask(ys)
-            ys_emb_pe = self.pe(self.tgt_tok_emb(ys))
-            out = self.decoder(ys_emb_pe, memory, tgt_mask)
-            out = out.transpose(0, 1)
-            prob = self.generater(out[:, -1])
-            _, next_word = torch.max(prob, dim=1)
-            next_word = next_word.item()
-
-            ys = torch.cat(
-                [ys, torch.ones(1, 1).type_as(source.data).fill_(next_word)],
-                dim=0,
-            )
-
-            if next_word == 2:
-                break
-
-        return ys
+        if self.beam_size > 0:
+            return beam_search(self, source)
+        else:
+            return greedy_search(self, source)
 
     def forward(self, source: Tensor, target: Tensor = None):
         if target is None:

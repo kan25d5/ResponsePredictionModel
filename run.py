@@ -15,8 +15,9 @@ DEVICES = -1
 NUM_WORKER = 26
 PIN_MEMORY = False
 PATIENCE = 3
+BEAM_SIZE = 20
 
-LOAD_MODEL = "assets/ST:normalB:80_E:200_ML:80_VS:40000_base.pth"
+PARAMS_PATH = "assets/best_models/best_params.json"
 
 
 # --------------------------------------
@@ -61,8 +62,9 @@ parser.add_argument("--devices", type=int, default=DEVICES)
 parser.add_argument("--num_workers", type=int, default=NUM_WORKER)
 parser.add_argument("--n_trials", type=int, default=N_TRIALS)
 parser.add_argument("--patience", type=int, default=PATIENCE)
+parser.add_argument("--beam_size", type=int, default=BEAM_SIZE)
 parser.add_argument("--data_size", type=float, default=DATA_SIZE)
-parser.add_argument("--params", type=str, default="", help=help_params)
+parser.add_argument("--params", type=str, default=PARAMS_PATH, help=help_params)
 parser.add_argument("--make_vocab", action="store_true")
 
 

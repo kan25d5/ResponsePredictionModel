@@ -119,8 +119,7 @@ def objective(trial: optuna.Trial, args):
     from pytorch_lightning.loggers import TensorBoardLogger
     from utilities.callbacks import DisplaySystenResponses
 
-    from optuna.integration.pytorch_lightning import \
-        PyTorchLightningPruningCallback
+    from optuna.integration.pytorch_lightning import PyTorchLightningPruningCallback
 
     pe_dropout = trial.suggest_float("pe_dropout", 0.1, 0.6)
     encoder_dropout = trial.suggest_float("encoder_dropout", 0.1, 0.6)
@@ -136,18 +135,20 @@ def objective(trial: optuna.Trial, args):
     print("-" * 20)
 
     maxlen = args.maxlen
+    beam_size = args.beam_size
     input_dim = len(vocab.vocab_X.char2id)
     output_dim = len(vocab.vocab_y.char2id)
 
     model = Seq2Seq(
         input_dim,
         output_dim,
+        maxlen=maxlen,
+        beam_size=beam_size,
         pe_dropout=pe_dropout,
         encoder_dropout=encoder_dropout,
         decoder_dropout=decoder_dropout,
         encoder_num_layers=encoder_num_layers,
         decoder_num_layers=decoder_num_layers,
-        maxlen=maxlen,
         learning_ratio=learning_ratio,
     )
 
