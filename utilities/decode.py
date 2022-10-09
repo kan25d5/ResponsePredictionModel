@@ -93,13 +93,12 @@ def beam_search(model, source: Tensor):
                 continue
 
             top_node: BeamNode
-            top_node_score = 0.0
-            step_node_list = []
+            top_node_score = -9999
             prob = get_prob(model, ys, memory)
             top_values, top_indices = prob.topk(model.beam_size, dim=-1)
             for value, indice in zip(top_values[0], top_indices[0]):
                 prob, word = value.item(), indice.item()
-                node = BeamNode(word, ys, source, prob, node_i, word_i, prev_node)
+                node = BeamNode(word, ys, source, prob, node_index, word_i, prev_node)
                 score = node.eval()
                 if score > top_node_score:
                     top_node = node
@@ -112,7 +111,7 @@ def beam_search(model, source: Tensor):
 
     # 最大スコアのノードだけを返す
     top_node: BeamNode
-    top_node_score = 0.0
+    top_node_score = -9999
     for node in node_list:
         score = node.eval()
         if score > top_node_score:
