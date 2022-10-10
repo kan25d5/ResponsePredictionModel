@@ -1,6 +1,7 @@
-import dill
 from collections import Counter
 from typing import List
+
+import dill
 from MeCab import Tagger
 from tqdm import tqdm
 from utilities.constant import MECAB_USER_DICT
@@ -66,7 +67,10 @@ class Vocab(object):
 
         for token in sentence.split():
             if token in self.char2id.keys():
-                output_e.append(self.char2id[token])
+                item = self.char2id[token]
+                if item > self.max_vocab:
+                    item = self.char2id[self.unk]
+                output_e.append(item)
             else:
                 output_e.append(self.char2id[self.unk])
 

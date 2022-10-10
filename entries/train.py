@@ -1,4 +1,4 @@
-CHECK_POINT = "assets/checkpoint/persona.ckpt"
+CHECK_POINT = "assets/checkpoint/neg.ckpt"
 
 
 def _init_boilerplate():
