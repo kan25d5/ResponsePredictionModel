@@ -133,7 +133,7 @@ class Seq2SeqTransformer(pl.LightningModule):
 
         assert x.size(1) == t.size(1), "Xとyでバッチサイズが異なる．"
         batch_size = x.size(1)
-        self.log("train_loss", loss, batch_size=batch_size)
+        self.log("val_loss", loss, batch_size=batch_size)
 
         result = {"source": x, "target": t, "loss": loss}
         return result
@@ -146,7 +146,7 @@ class Seq2SeqTransformer(pl.LightningModule):
 
         assert x.size(1) == t.size(1), "Xとyでバッチサイズが異なる．"
         batch_size = x.size(1)
-        self.log("train_loss", loss, batch_size=batch_size)
+        self.log("test_loss", loss, batch_size=batch_size)
 
         return loss
 
