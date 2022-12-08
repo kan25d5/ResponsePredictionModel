@@ -1,146 +1,176 @@
-def __get_corpus_from_twitter(sentiment_type, maxlen, transform):
-    from utilities.utility_functions import load_json
+import csv
+import glob
+import pickle
 
-    X, y = [], []
-    filepath = f"assets/corpus/{sentiment_type}.json"
-    corpus = load_json(filepath)
+import dill
+import pandas as pd
+import torchtext.transforms as T
+from MeCab import Tagger
+from sklearn.model_selection import train_test_split
+from torch.utils.data import DataLoader
+from torchtext.data.utils import get_tokenizer
+from torchtext.vocab import build_vocab_from_iterator
 
-    for msg, res in zip(corpus["X"], corpus["y"]):
-        if len(msg) > maxlen or len(res) > maxlen:
-            continue
-        if len(msg) <= 1 or len(res) <= 1:
-            continue
-        if transform is not None:
-            msg = transform(msg)
-            res = transform(res)
-        X.append(msg)
-        y.append(res)
+from utilities.transform import TwitterTransform
+from utilities.utility_functions import load_json
 
-    return X, y
-
-
-def __get_corpus_from_base(sentiment_type, maxlen, transform):
-    from utilities.utility_functions import load_json
-
-    X, y = [], []
-
-    # persona
-    if sentiment_type == "persona" or sentiment_type == "base":
-        assert transform is not None, "personaコーパスにはTwitterTrasnformの指定が必要"
-        corpus = load_json("assets/corpus/persona.json")
-        for msg, res in zip(corpus["X"], corpus["y"]):
-            if len(msg) > maxlen or len(res) > maxlen:
-                continue
-            if len(msg) <= 1 or len(res) <= 1:
-                continue
-            msg = transform(msg)
-            res = transform(res)
-            X.append(msg)
-            y.append(res)
-
-    # nucc
-    if sentiment_type == "nucc" or sentiment_type == "base":
-        corpus = load_json("assets/corpus/nucc.json")
-        for msg, res in zip(corpus["X"], corpus["y"]):
-            if len(msg) > maxlen or len(res) > maxlen:
-                continue
-            if len(msg) <= 1 or len(res) <= 1:
-                continue
-            X.append(msg)
-            y.append(res)
-
-    assert len(X) == len(y), "発話と応答のリストサイズが一致しない．"
-    return X, y
+# def json_to_tsv():
+#     for filepath in glob.glob("assets/corpus/json/*.json"):
+#         corpus = load_json(filepath)
+#         with open(filepath.replace("json", "tsv"), "w") as f:
+#             writer = csv.writer(f, delimiter="\t")
+#             writer.writerow(["source", "target"])
+#             for msg, res in zip(corpus["X"], corpus["y"]):
+#                 writer.writerow([msg, res])
 
 
-def get_corpus(sentiment_type: str = "neu", maxlen=80, transform=None):
+def get_corpus_df(corpus_type: str):
+    """コーパスのタイプを指定して，DataFrameで返す
+
+    Returns:
+        df(pd.DataFrame)
     """
-    コーパスをロードして発話／応答のリストを返す．\n
-    return X:List[str], y:List[str]
+    df = pd.read_csv(f"assets/corpus/tsv/{corpus_type}.tsv", sep="\t")
+    df["source"] = df["source"].astype(str)
+    df["target"] = df["target"].astype(str)
+    return df
+
+
+def get_vocabs(df: pd.DataFrame, vocab_size: int, corpus_type: str, tokenizer=None):
+    """データセットから単語を取り出しtorchtext.vocab.Vocabを作成する．
+    https://pytorch.org/text/main/vocab.html#torchtext.vocab.Vocab
+
+    Args:
+        df (pd.DataFrame): get_corpus_df()の戻り値
+        vocab_size (int): 最大語彙数
+        tokenizer (_type_, optional): トークナイザー.
+
+    Returns:
+        source_vocab, target_vocab: SourceとTargetのVocab
     """
-    if sentiment_type == "neu" or sentiment_type == "neg" or sentiment_type == "pos":
-        return __get_corpus_from_twitter(sentiment_type, maxlen, transform)
-    elif sentiment_type == "persona" or sentiment_type == "nucc" or sentiment_type == "base":
-        return __get_corpus_from_base(sentiment_type, maxlen, transform)
-    else:
-        raise ValueError("sentiment_typeの値が不正")
+
+    # 単語分割
+    if tokenizer is None:
+        tokenizer = TwitterTransform(is_wakati=True)
+
+    tokenizer = get_tokenizer(tokenizer=tokenizer, language="ja")
+    df["source"] = df["source"].map(lambda x: tokenizer(x).split())
+    df["target"] = df["target"].map(lambda x: tokenizer(x).split())
+
+    # 単語辞書作成
+    # text_vocab type is torchtext.Vocab
+    # ref : https://pytorch.org/text/main/vocab.html#vocab
+    source_vocab = build_vocab_from_iterator(
+        df["source"], specials=("<pad>", "<bos>", "<eos>", "<unk>"), max_tokens=vocab_size
+    )
+    target_vocab = build_vocab_from_iterator(
+        df["target"], specials=("<pad>", "<bos>", "<eos>", "<unk>"), max_tokens=vocab_size
+    )
+
+    # デフォルトインデックスを<unk>に設定
+    source_vocab.set_default_index(source_vocab["<unk>"])
+    target_vocab.set_default_index(target_vocab["<unk>"])
+
+    return source_vocab, target_vocab
 
 
-def get_dataset(X, y, maxlen: int, data_size: float, train_size=0.8, val_size=0.7):
-    from sklearn.model_selection import train_test_split
-    from dataloader.twitter_dataset import TwitterDataset
+def get_transform(source_vocab, target_vocab):
+    """torchtext.Transformを作成する．
+        https://pytorch.org/text/main/transforms.html
 
-    X, y = X[: int(len(X) * data_size)], y[: int(len(y) * data_size)]
-    X_train, X_other, y_train, y_other = train_test_split(X, y, train_size=train_size)
-    X_val, X_test, y_val, y_test = train_test_split(X_other, y_other, train_size=val_size)
+    Args:
+        source_vocab (torchtext.vocab.Vocab): SourceのVocab
+        target_vocab (torchtext.vocab.Vocab): targetのVocab
 
-    train_dataset = TwitterDataset(X_train, y_train, maxlen=maxlen)
-    val_dataset = TwitterDataset(X_val, y_val, maxlen=maxlen)
-    test_dataset = TwitterDataset(X_test, y_test, maxlen=maxlen)
+    Returns:
+        source_transform, target_transform: SourceとTargetのTransform
+    """
+
+    # transformの設定
+    # ref : https://pytorch.org/text/main/transforms.html
+    source_transform = T.Sequential(
+        T.VocabTransform(source_vocab),  # トークン-to-インデックスの設定
+        T.AddToken(token=source_vocab["<bos>"], begin=True),  # BOSトークン
+        T.AddToken(token=source_vocab["<eos>"], begin=False),  # EOSトークン
+        T.ToTensor(padding_value=source_vocab["<pad>"]),  # パディング処理
+    )
+    target_transform = T.Sequential(
+        T.VocabTransform(target_vocab),  # トークン-to-インデックスの設定
+        T.AddToken(token=target_vocab["<bos>"], begin=True),  # BOSトークン
+        T.AddToken(token=target_vocab["<eos>"], begin=False),  # EOSトークン
+        T.ToTensor(padding_value=target_vocab["<pad>"]),  # パディング処理
+    )
+
+    return source_transform, target_transform
+
+
+def get_datasets(df: pd.DataFrame):
+    """データセットを訓練/検証/テストの3つに分割する．
+
+    Args:
+        df (pd.DataFrame): get_corpus_df()の戻り値
+
+    Returns:
+        [train_dataset, val_dataset, test_dataset]: 分割したデータセットのpd.DataFrameである．
+        {"source" : [source_sequence], "target:[target_sequence]}のようになっている．
+        各_sequenceはトークンリスト．
+    """
+
+    # データセットを訓練/検証/testに分割する
+    X_train, X_other, y_train, y_other = train_test_split(df["source"], df["target"])
+    X_val, X_test, y_val, y_test = train_test_split(X_other, y_other)
+
+    # 各データのXとyをデータをひとまとめにする
+    train_dataset = pd.DataFrame({"source": X_train, "target": y_train})
+    val_dataset = pd.DataFrame({"source": X_val, "target": y_val})
+    test_dataset = pd.DataFrame({"source": X_test, "target": y_test})
 
     all_dataset = [train_dataset, val_dataset, test_dataset]
     return all_dataset
 
 
-def get_dataloader(all_dataset, vocab, maxlen: int, batch_size: int, num_workers: int):
-    """
-    all_dataset:List[TwitterDataset]を受け取り，all_dataloader:List[DataLoader]を返す．
-    all_datasetは，train/val/testの順で作成されたTwitterDataset型のインスタンスを持つリスト．
-    - パラメーター\n
-    all_dataset : [train_dataset, val_dataset, test_dataset]
-    - 戻り値\n
-    all_dataloader : [train_dataloader, val_dataloader, test_dataloader]
-    """
+def collate_batch(batch, source_transform, target_transform):
+    sources = source_transform([source for (source, target) in batch])
+    targets = target_transform([target for (source, target) in batch])
+    return sources.t(), targets.t()
 
-    from torch.utils.data import DataLoader
-    from dataloader.twitter_dataset import collate_fn
 
+def get_dataloader(
+    all_dataset, source_transform, target_transform, batch_size: int, num_workers=8
+):
+    train_dataset = all_dataset[0]
+    val_dataset = all_dataset[1]
+    test_dataset = all_dataset[2]
+
+    # データローダーを作成する
     train_dataloader = DataLoader(
-        all_dataset[0],
+        train_dataset.values,
         batch_size=batch_size,
-        shuffle=False,
-        num_workers=num_workers,
         pin_memory=True,
-        collate_fn=lambda batch: collate_fn(batch, vocab, maxlen),
+        num_workers=num_workers,
+        collate_fn=lambda batch: collate_batch(batch, source_transform, target_transform),
     )
     val_dataloader = DataLoader(
-        all_dataset[1],
+        val_dataset.values,
         batch_size=batch_size,
-        shuffle=False,
-        num_workers=num_workers,
         pin_memory=True,
-        collate_fn=lambda batch: collate_fn(batch, vocab, maxlen),
+        num_workers=num_workers,
+        collate_fn=lambda batch: collate_batch(batch, source_transform, target_transform),
     )
     test_dataloader = DataLoader(
-        all_dataset[2],
+        test_dataset.values,
         batch_size=1,
-        shuffle=False,
+        pin_memory=True,
         num_workers=num_workers,
-        # pin_memory=True,
-        collate_fn=lambda batch: collate_fn(batch, vocab, maxlen),
+        collate_fn=lambda batch: collate_batch(batch, source_transform, target_transform),
     )
-    train_dataloader_callback = DataLoader(
-        all_dataset[0],
+    test_callback_dataloader = DataLoader(
+        test_dataset.values,
         batch_size=1,
-        shuffle=True,
-        num_workers=1,
         pin_memory=True,
-        collate_fn=lambda batch: collate_fn(batch, vocab, maxlen),
+        num_workers=num_workers,
+        collate_fn=lambda batch: collate_batch(batch, source_transform, target_transform),
     )
-    val_dataloader_callback = DataLoader(
-        all_dataset[1],
-        batch_size=1,
-        shuffle=True,
-        num_workers=1,
-        pin_memory=True,
-        collate_fn=lambda batch: collate_fn(batch, vocab, maxlen),
-    )
+    all_dataloader = [train_dataloader, val_dataloader, test_dataloader, test_callback_dataloader]
 
-    all_dataloader = [
-        train_dataloader,
-        val_dataloader,
-        test_dataloader,
-        train_dataloader_callback,
-        val_dataloader_callback,
-    ]
     return all_dataloader

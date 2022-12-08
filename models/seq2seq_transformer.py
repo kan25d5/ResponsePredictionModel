@@ -1,12 +1,13 @@
+from typing import Tuple
+
+import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import pytorch_lightning as pl
-from torchmetrics import Accuracy
-from typing import Tuple
 from torch import Tensor
+
 from layers.seq2seq_transformer_layers import PositionalEncoding, TokenEmbedding
-from utilities.decode import training, predict
+from utilities.decode import beam_search, greedy_search
 
 
 class Seq2SeqTransformer(pl.LightningModule):
@@ -63,14 +64,26 @@ class Seq2SeqTransformer(pl.LightningModule):
         # 損失関数の定義
         self.criterion = nn.CrossEntropyLoss(ignore_index=self.padding_idx)
 
-        # 評価手法
-        self.test_acc = Accuracy()
-
     def forward(self, source: Tensor, target: Tensor = None):
         if target is None:
-            return predict(self, source)
+            if self.beam_size > 0:
+                return beam_search(self, source)
+            else:
+                return greedy_search(self, source)
         else:
-            return training(self, source, target)
+            return self._training(source, target)
+
+    def _training(self, source: Tensor, target: Tensor):
+        tgt_input = target[:-1, :]
+        src_emb_pe = self.pe(self.src_tok_emb(source))
+        tgt_emb_pe = self.pe(self.tgt_tok_emb(tgt_input))
+        src_mask, src_padding_mask = self._create_src_mask(source)
+        tgt_mask, tgt_padding_mask = self._create_tgt_mask(tgt_input)
+
+        memory = self.encoder(src_emb_pe, src_mask, src_padding_mask)
+        out = self.decoder(tgt_emb_pe, memory, tgt_mask, None, tgt_padding_mask, src_padding_mask)
+        out = self.generater(out)
+        return out
 
     def _create_src_mask(self, src: Tensor):
         src_size = src.shape[0]
@@ -97,20 +110,18 @@ class Seq2SeqTransformer(pl.LightningModule):
         loss = self.criterion(preds, target)
         return loss
 
-    def compute_acc(self, preds: Tensor, target: Tensor, acc):
-        preds = preds.reshape(-1, preds.shape[-1])
-        target = target.reshape(-1)
-        return acc(preds, target)
-
     def training_step(self, batch: Tuple[Tensor, Tensor], batch_idx: int):
-        self.train()
-
+        # shape of input X : (Seq_size, Batch_size)
+        #   shape of embedded X : (Seq_size, Batch_size, Emb_size)
         x, t = batch
         tgt_out = t[1:, :]
-        preds = self.forward(x, t)
 
+        preds = self.forward(x, t)
         loss = self.compute_loss(preds, tgt_out)
-        self.log("train_loss", loss, on_step=False, on_epoch=True)
+
+        assert x.size(1) == t.size(1), "Xとyでバッチサイズが異なる．"
+        batch_size = x.size(1)
+        self.log("train_loss", loss, batch_size=batch_size)
 
         return loss
 
@@ -120,16 +131,22 @@ class Seq2SeqTransformer(pl.LightningModule):
         preds = self.forward(x, t)
         loss = self.compute_loss(preds, tgt_out)
 
-        self.log("val_loss", loss, on_step=False, on_epoch=True)
-        return loss
+        assert x.size(1) == t.size(1), "Xとyでバッチサイズが異なる．"
+        batch_size = x.size(1)
+        self.log("train_loss", loss, batch_size=batch_size)
+
+        result = {"source": x, "target": t, "loss": loss}
+        return result
 
     def test_step(self, batch: Tuple[Tensor, Tensor], batch_idx: int):
         x, t = batch
         tgt_out = t[1:, :]
         preds = self.forward(x, t)
-
         loss = self.compute_loss(preds, tgt_out)
-        self.log("test_loss", value=loss)
+
+        assert x.size(1) == t.size(1), "Xとyでバッチサイズが異なる．"
+        batch_size = x.size(1)
+        self.log("train_loss", loss, batch_size=batch_size)
 
         return loss
 

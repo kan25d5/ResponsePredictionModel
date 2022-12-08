@@ -1,169 +1,166 @@
-CHECK_POINT = "/home/s2110184/project/ResponsePredictionModel/assets/neu-v1.ckpt"
+import os
 
-sentiment_type: str
-maxlen: int
-batch_size: int
-max_epoch: int
-vocab_size: int
-strategy: str
-accelerator: str
-devices: int
-num_worker: int
-make_vocab: bool
-data_size: float
+import pytorch_lightning as pl
+import torch
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+from pytorch_lightning.loggers import TensorBoardLogger
+from torchtext.vocab import Vocab
+
+from models.seq2seq_transformer import Seq2SeqTransformer
+from utilities.callbacks import DisplayPredictedResponse
+from utilities.training_functions import (get_corpus_df, get_dataloader,
+                                          get_datasets, get_transform,
+                                          get_vocabs)
+
+# フィールド定数
+CHECK_POINT = "assets/checkpoint/neu.ckpt"
+
+# フィールド変数
+source_vocab: Vocab
+target_vocab: Vocab
 
 
-def _init_boilerplate():
+def _init_boilerplate(args):
     # --------------------------------------
     # Reference:
     # https://stackoverflow.com/questions/30791550/limit-number-of-threads-in-numpy/31622299#31622299
     # --------------------------------------
     import os
 
-    os.environ["MKL_NUM_THREADS"] = "1"
+    os.environ["MKL_NUM_THREADS"] = "0"
     os.environ["NUMEXPR_NUM_THREADS"] = "1"
     os.environ["OMP_NUM_THREADS"] = "1"
 
-
-def _set_fields(args):
-    global sentiment_type
-    global maxlen
-    global batch_size
-    global max_epoch
-    global vocab_size
-    global strategy
-    global devices
-    global num_worker
-    global accelerator
-    global make_vocab
-    global data_size
-
-    sentiment_type = args.sentiment_type
-    maxlen = args.maxlen
-    batch_size = args.batch_size
-    max_epoch = args.max_epoch
-    vocab_size = args.vocab_size
-    strategy = args.strategy
-    accelerator = args.accelerator
-    devices = args.devices
-    num_worker = args.num_worker
-    make_vocab = args.make_vocab
-    data_size = args.data_size
-
-
-def _get_vocab(args):
-    from vocab.twitter_vocab import TwitterVocab
-    from utilities.constant import CHAR2ID_FILEPATH
-
-    vocab = TwitterVocab()
-    sentiment_type = args.sentiment_type
-    maxlen = args.maxlen
-    make_vocab = args.make_vocab
-    data_size = args.data_size
-    vocab_size = args.vocab_size
-
-    if not make_vocab:
-        vocab.load_char2id_pkl(CHAR2ID_FILEPATH)
+    # ------------------------------------
+    # Reference:
+    # https://github.com/Lightning-AI/lightning/issues/1314#issuecomment-706607614
+    # ------------------------------------
+    device_count = args.devices
+    if device_count <= 0:
+        raise ValueError("デバイスの指定が0以下です．--device={}".format(device_count))
+    elif device_count == 1:
+        os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     else:
-        from utilities.training_functions import get_corpus
-
-        X, y = get_corpus(sentiment_type=sentiment_type, maxlen=maxlen)
-        X, y = X[: int(len(X) * data_size)], y[: int(len(y) * data_size)]
-
-        vocab.fit(X, y, is_wakati=True)
-        vocab.reduce_vocabulary(vocab_size)
-
-    return vocab
+        os.environ["CUDA_VISIBLE_DEVICES"] = ",".join([str(i) for i in range(device_count)])
 
 
-def _get_dataloader(vocab):
-    from utilities.training_functions import get_corpus, get_dataset, get_dataloader
+def check_dataloader(dataloader):
+    for idx, batch in enumerate(dataloader):
+        if idx > 5:
+            break
 
-    # データセットを取得
-    transform = None
-    if sentiment_type == "persona" or sentiment_type == "base":
-        from dataloader.twitter_transform import TwitterTransform
+        x, t = batch
 
-        transform = TwitterTransform()
+        x_item = x[:, 0].tolist()
+        t_item = t[:, 0].tolist()
 
-    X, y = get_corpus(sentiment_type=sentiment_type, maxlen=maxlen, transform=transform)
-    all_dataset = get_dataset(X, y, maxlen, data_size)
+        source = "".join(
+            [token for token in source_vocab.lookup_tokens(x_item) if token != "<pad>"]
+        )
+        target = "".join(
+            [token for token in target_vocab.lookup_tokens(t_item) if token != "<pad>"]
+        )
+        print("source : {}".format(source))
+        print("target : {}".format(target))
+        print("-" * 20)
 
-    # データローダーを取得
-    # -> [train, val, test, callback_train]の4つのDataLoaderを取得する
-    all_dataloader = get_dataloader(all_dataset, vocab, maxlen, batch_size, num_worker)
+
+def training_data_pipeline(args):
+    global source_vocab
+    global target_vocab
+
+    # コーパスをロード
+    df = get_corpus_df(args.sentiment_type)
+
+    # Source, Targetの
+    # 語彙セットクラスtorchtext.vocab.Vocabを作成
+    # source_vocab, target_vocabはフィールド変数
+    source_vocab, target_vocab = get_vocabs(df, args.vocab_size, args.sentiment_type)
+
+    # torchtext.Transformを作成
+    source_transform, target_transform = get_transform(source_vocab, target_vocab)
+
+    # コーパスを訓練/検証/テストの３つに分割し
+    # DataLoaderが読み込める形にする
+    all_dataset = get_datasets(df)
+
+    # データローダーを作成する
+    all_dataloader = get_dataloader(
+        all_dataset, source_transform, target_transform, args.batch_size
+    )
+
+    # データローダーの中身を確認する
+    train_dataloader = all_dataloader[0]
+    val_dataloader = all_dataloader[1]
+    test_dataloader = all_dataloader[2]
+
+    check_dataloader(train_dataloader)
+    check_dataloader(val_dataloader)
+    check_dataloader(test_dataloader)
+
     return all_dataloader
 
 
-def _get_model(vocab):
-    import torch
-    from models.seq2seq_transform import Seq2SeqTransformer
+def get_model(args):
+    src_vocab_size = len(source_vocab.get_stoi())
+    tgt_vocab_size = len(target_vocab.get_stoi())
 
-    input_dim = vocab_size
-    output_dim = vocab_size
+    print("src_vocab_size : {}".format(src_vocab_size))
+    print("tgt_vocab_size : {}".format(tgt_vocab_size))
 
-    model = Seq2SeqTransformer(input_dim, output_dim, maxlen=maxlen)
-    if sentiment_type == "neg" or sentiment_type == "pos":
+    model = Seq2SeqTransformer(src_vocab_size, tgt_vocab_size, beam_size=args.beam_size)
+    if args.sentiment_type == "neg" or args.sentiment_type == "pos":
         model.load_state_dict(torch.load(CHECK_POINT)["state_dict"])
-
     return model
 
 
-def _get_trainer(vocab, dataloader_train_callback, dataloader_test):
-    import os
-    import pytorch_lightning as pl
-    from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
-    from pytorch_lightning.loggers import TensorBoardLogger
-    from utilities.callbacks import DisplaySystenResponses
-
-    # コールバックの定義
+def get_trainer(args, test_callback_dataloader):
+    logger = TensorBoardLogger(os.path.join(os.getcwd(), "logs/"), args.sentiment_type)
     callbacks = [
-        EarlyStopping(monitor="val_loss", mode="min", patience=3, verbose=True),
         ModelCheckpoint(
-            dirpath="assets", filename=sentiment_type, monitor="val_loss", verbose=True
+            dirpath="assets/checkpoint", filename=args.sentiment_type, monitor="val_loss"
         ),
-        DisplaySystenResponses(vocab, dataloader_train_callback, dataloader_test),
+        EarlyStopping(monitor="val_loss", patience=args.patience),
+        DisplayPredictedResponse(source_vocab, target_vocab, test_callback_dataloader),
     ]
 
-    # Loggerの定義
-    logger = TensorBoardLogger(os.path.join(os.getcwd(), "logs/"), sentiment_type)
-
-    # Trainerの定義
     trainer = pl.Trainer(
         logger=logger,
         callbacks=callbacks,
-        devices=devices,
-        max_epochs=max_epoch,
-        strategy=strategy,
-        accelerator=accelerator,
+        devices=args.devices,
+        max_epochs=args.max_epoch,
+        accelerator=args.accelerator,
+        strategy=args.strategy if args.strategy != "" or args.strategy != "None" else None,
     )
 
     return trainer
 
 
 def train(args):
+    # GPU check
+    assert torch.cuda.is_available(), "GPUが認識されていない"
+
     # おまじないコード
-    _init_boilerplate()
+    _init_boilerplate(args)
 
-    # コマンドライン引数のフィールド値のセット
-    _set_fields(args)
+    # データローダーを取得する
+    all_dataloader = training_data_pipeline(args)
 
-    # 語彙マップクラスを取得
-    vocab = _get_vocab(args)
+    train_dataloader = all_dataloader[0]
+    val_dataloader = all_dataloader[1]
+    test_dataloader = all_dataloader[2]
+    test_callback_dataloader = all_dataloader[3]
 
-    # データローダーを取得
-    all_dataloader = _get_dataloader(vocab)
-    dataloader_train = all_dataloader[0]
-    dataloader_val = all_dataloader[1]
-    dataloader_test = all_dataloader[2]
-    dataloader_train_callback = all_dataloader[3]
+    # モデルをロード
+    model = get_model(args)
 
-    # モデルを取得
-    model = _get_model(vocab)
+    # pl.Trainerを取得
+    trainer = get_trainer(args, test_callback_dataloader)
 
-    # Trainerの定義
-    trainer = _get_trainer(vocab, dataloader_train_callback, dataloader_test)
+    # モデルをトレーニング
+    trainer.fit(model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
+    trainer.test(model, test_dataloader)
 
-    # 学習コード
-    trainer.fit(model, train_dataloaders=dataloader_train, val_dataloaders=dataloader_val)
-    trainer.test(model, dataloader_test)
+    # 語彙データを保存
+    torch.save(source_vocab, "assets/vocab/source_vocab.pth")
+    torch.save(target_vocab, "assets/vocab/target_vocab.pth")
