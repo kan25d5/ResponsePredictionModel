@@ -31,7 +31,9 @@ parser = argparse.ArgumentParser(description=description)
 help_mode = "起動するモードを選択する．\
     train : 指定したパラメータでモデルの訓練する．\
     pred : 学習済みのモデルを利用してコマンドライン\
-    optuna : ハイパーパラメータを探索する．"
+    optuna : ハイパーパラメータを探索する．\
+    make_corpus : 語彙データを作成する．\
+    load_corpus : 語彙データを確認する．"
 help_sentimet = "応答の極性を選択する．\
     pos : 積極的な応答を訓練/生成する．\
     neg : 消極的な応答を訓練/生成する．\
@@ -76,6 +78,14 @@ def main():
         pass
     elif run_mode == "optuna":
         pass
+    elif run_mode == "make_corpus":
+        from entries.make_vocab import make_vocab
+
+        make_vocab(args)
+    elif run_mode == "load_corpus":
+        from entries.make_vocab import load_vocab
+
+        load_vocab()
     else:
         raise ValueError("modeの引数が不正．--helpを参照．")
 

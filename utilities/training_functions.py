@@ -1,11 +1,8 @@
-import csv
-import glob
-import pickle
+import os
 
-import dill
 import pandas as pd
+import torch
 import torchtext.transforms as T
-from MeCab import Tagger
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
 from torchtext.data.utils import get_tokenizer
@@ -24,42 +21,38 @@ from utilities.utility_functions import load_json
 #                 writer.writerow([msg, res])
 
 
-def get_corpus_df(corpus_type: str):
+def get_corpus_df(corpus_type: str, tokenizer=None):
     """コーパスのタイプを指定して，DataFrameで返す
 
     Returns:
         df(pd.DataFrame)
     """
+    # コーパスをロードする
     df = pd.read_csv(f"assets/corpus/tsv/{corpus_type}.tsv", sep="\t")
     df["source"] = df["source"].astype(str)
     df["target"] = df["target"].astype(str)
-    return df
 
-
-def get_vocabs(df: pd.DataFrame, vocab_size: int, corpus_type: str, tokenizer=None):
-    """データセットから単語を取り出しtorchtext.vocab.Vocabを作成する．
-    https://pytorch.org/text/main/vocab.html#torchtext.vocab.Vocab
-
-    Args:
-        df (pd.DataFrame): get_corpus_df()の戻り値
-        vocab_size (int): 最大語彙数
-        tokenizer (_type_, optional): トークナイザー.
-
-    Returns:
-        source_vocab, target_vocab: SourceとTargetのVocab
-    """
-
-    # 単語分割
+    # ロードしたコーパスを分かち書きする
     if tokenizer is None:
         tokenizer = TwitterTransform(is_wakati=True)
 
     tokenizer = get_tokenizer(tokenizer=tokenizer, language="ja")
     df["source"] = df["source"].map(lambda x: tokenizer(x).split())
     df["target"] = df["target"].map(lambda x: tokenizer(x).split())
+    return df
 
-    # 単語辞書作成
-    # text_vocab type is torchtext.Vocab
-    # ref : https://pytorch.org/text/main/vocab.html#vocab
+
+def make_vocabs(
+    df: pd.DataFrame,
+    vocab_size: int,
+    is_saved=True,
+    source_filename="source_vocab.pth",
+    target_filename="target_vocab.pth",
+):
+    """データセットから単語を取り出しtorchtext.vocab.Vocabを作成する．
+    https://pytorch.org/text/main/vocab.html#torchtext.vocab.Vocab
+    """
+    # コーパスからVocabオブジェクトを作成する
     source_vocab = build_vocab_from_iterator(
         df["source"], specials=("<pad>", "<bos>", "<eos>", "<unk>"), max_tokens=vocab_size
     )
@@ -71,6 +64,20 @@ def get_vocabs(df: pd.DataFrame, vocab_size: int, corpus_type: str, tokenizer=No
     source_vocab.set_default_index(source_vocab["<unk>"])
     target_vocab.set_default_index(target_vocab["<unk>"])
 
+    if is_saved:
+        torch.save(source_vocab, os.path.join("assets/vocab", source_filename))
+        torch.save(target_vocab, os.path.join("assets/vocab", target_filename))
+
+    return source_vocab, target_vocab
+
+
+def load_vocabs(
+    source_filename="source_vocab.pth",
+    target_filename="target_vocab.pth",
+):
+    """作成した辞書データをロードする"""
+    source_vocab = torch.load(os.path.join("assets/vocab", source_filename))
+    target_vocab = torch.load(os.path.join("assets/vocab", target_filename))
     return source_vocab, target_vocab
 
 
@@ -169,6 +176,7 @@ def get_dataloader(
         batch_size=1,
         pin_memory=True,
         num_workers=num_workers,
+        shuffle=True,
         collate_fn=lambda batch: collate_batch(batch, source_transform, target_transform),
     )
     all_dataloader = [train_dataloader, val_dataloader, test_dataloader, test_callback_dataloader]

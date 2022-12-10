@@ -8,12 +8,15 @@ from torchtext.vocab import Vocab
 
 from models.seq2seq_transformer import Seq2SeqTransformer
 from utilities.callbacks import DisplayPredictedResponse
-from utilities.training_functions import (get_corpus_df, get_dataloader,
-                                          get_datasets, get_transform,
-                                          get_vocabs)
+from utilities.training_functions import (
+    get_corpus_df,
+    get_dataloader,
+    get_datasets,
+    get_transform,
+    load_vocabs,
+)
 
-# フィールド定数
-CHECK_POINT = "assets/checkpoint/neu.ckpt"
+CHECK_POINT = "assets/checkpoint/persona.ckpt"
 
 # フィールド変数
 source_vocab: Vocab
@@ -75,7 +78,7 @@ def training_data_pipeline(args):
     # Source, Targetの
     # 語彙セットクラスtorchtext.vocab.Vocabを作成
     # source_vocab, target_vocabはフィールド変数
-    source_vocab, target_vocab = get_vocabs(df, args.vocab_size, args.sentiment_type)
+    source_vocab, target_vocab = load_vocabs()
 
     # torchtext.Transformを作成
     source_transform, target_transform = get_transform(source_vocab, target_vocab)
@@ -109,7 +112,8 @@ def get_model(args):
     print("tgt_vocab_size : {}".format(tgt_vocab_size))
 
     model = Seq2SeqTransformer(src_vocab_size, tgt_vocab_size, beam_size=args.beam_size)
-    if args.sentiment_type == "neg" or args.sentiment_type == "pos":
+    if args.sentiment_type != "persona":
+        # personaモデルのトレーニング以外はファインチューニングする
         model.load_state_dict(torch.load(CHECK_POINT)["state_dict"])
     return model
 
@@ -160,7 +164,3 @@ def train(args):
     # モデルをトレーニング
     trainer.fit(model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
     trainer.test(model, test_dataloader)
-
-    # 語彙データを保存
-    torch.save(source_vocab, "assets/vocab/source_vocab.pth")
-    torch.save(target_vocab, "assets/vocab/target_vocab.pth")
