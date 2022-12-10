@@ -1,3 +1,7 @@
+# ------------------------------------------------
+# Python .gitignore template below
+# ------------------------------------------------
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -128,7 +132,13 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# user edited
+# ------------------------------------------------
+# User Edited below
+# ------------------------------------------------
+
+# Ignore log folder
 logs/
-assets/
 lightning_logs/
+
+# Ignore corpus and other files
+assets/*
