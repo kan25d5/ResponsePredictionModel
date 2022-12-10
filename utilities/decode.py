@@ -46,80 +46,78 @@ class BeamNode(object):
             score += self._get_current_node_score(node)
 
 
+def _get_prob(model, ys, memory) -> Tensor:
+    """単語の出現確率を取得する"""
+    tgt_mask, _ = model._create_tgt_mask(ys)
+    ys_emb_pe = model.pe(model.tgt_tok_emb(ys))
+    out = model.decoder(ys_emb_pe, memory, tgt_mask)
+    out = out.transpose(0, 1)
+    prob = model.generater(out[:, -1])
+    return prob
+
+
 def beam_search(model, source: Tensor):
-    def get_prob(model, ys, memory) -> Tensor:
-        """Decoderの順伝播"""
-        tgt_mask, _ = model._create_tgt_mask(ys)
-        ys_emb_pe = model.pe(model.tgt_tok_emb(ys))
-        out = model.decoder(ys_emb_pe, memory, tgt_mask)
-        out = out.transpose(0, 1)
-        prob = model.generater(out[:, -1])
-        return prob
+    # REVIEW: めちゃくちゃ遅いコード
+    #         見直しの必要あり
 
-    def truncate_after_EOS(node_ys: Tensor):
-        new_tensor = []
-        for item in node_ys:
-            item = item[0].item()
-            new_tensor.append([item])
-            if item == 2:
-                break
-        return torch.LongTensor(new_tensor)
-
-    # top-beam_sizeのノードを保持
+    # Beam_size分だけ保持するBeamNodeリスト
     node_list = []
 
-    # Encoderの順伝播
+    # ステップ１
+    # Encoderによる順伝播
+    #   expected shape of ys : (B, S)
+    #   expected shape prob : (B, S, V)
     src_mask, _ = model._create_src_mask(source)
     src_emb_pe = model.pe(model.src_tok_emb(source))
     memory = model.encoder(src_emb_pe, src_mask)
     ys = torch.ones(1, 1, device=model.device)
 
-    # １単語目の推論
-    prob = get_prob(model, ys, memory)
-    top_values, top_indices = prob.topk(model.beam_size, dim=-1)
-    for node_i, (value, indice) in enumerate(zip(top_values[0], top_indices[0])):
-        prob, word = value.item(), indice.item()
-        node = BeamNode(word, ys, source, prob, node_i)
+    # ステップ２
+    # 最初の単語を最尤推定する
+    # 生起確率上位beam_size分だけnode_listに保持する
+    prob = _get_prob(model, ys, memory)
+    next_values, next_words = prob.topk(model.beam_size, dim=1)
+
+    for value, word in zip(next_values[0], next_words[0]):
+        value = value.item()
+        word = word.item()
+
+        node = BeamNode(word, ys, source, value, 0, 0)
         node_list.append(node)
 
-    # ２単語目以降の推論
-    aleady_reached_eos = []
-    for word_i in range(1, model.maxlen - 1, 1):
-        for node_index in range(model.beam_size):
-            prev_node = node_list[node_index]
+    # ステップ４
+    # ２単語目以降の単語をビームサーチで探索する．
+    # 各ノードからbeam_size分の次単語を予測し，最もスコアが高いものだけをノードとして保持（枝切り）
+    for word_i in range(model.maxlen - 2):
+        for i in range(model.beam_size):
+            prev_node = node_list[i]
             ys = prev_node.ys
 
-            if node_index in aleady_reached_eos:
-                continue
-
             top_node: BeamNode
-            top_node_score = -9999
-            prob = get_prob(model, ys, memory)
-            top_values, top_indices = prob.topk(model.beam_size, dim=-1)
-            for value, indice in zip(top_values[0], top_indices[0]):
-                prob, word = value.item(), indice.item()
-                node = BeamNode(word, ys, source, prob, node_index, word_i, prev_node)
+            top_node_score = 0.0
+            prob = _get_prob(model, ys, memory)
+            next_values, next_words = prob.topk(model.beam_size, dim=1)
+
+            for value, word in zip(next_values[0], next_words[0]):
+                value = value.item()
+                word = word.item()
+                node = BeamNode(word, ys, source, value, i, word_i, prev_node)
                 score = node.eval()
                 if score > top_node_score:
-                    top_node = node
                     top_node_score = score
+                    top_node = node
 
-            node_list[node_index] = top_node
+            node_list[i] = top_node
 
-            if top_node.next_word == 2:
-                aleady_reached_eos.append(node_index)
-
-    # 最大スコアのノードだけを返す
+    # ステップ５
+    # 最終的に最もスコアが高いノードが保持する出力ベクトルを返す
     top_node: BeamNode
-    top_node_score = -9999
+    top_score = 0
     for node in node_list:
-        score = node.eval()
-        if score > top_node_score:
+        if node.eval() > top_score:
             top_node = node
-            top_node_score = score
 
-    ys = truncate_after_EOS(top_node.ys)
-    return ys
+    return node.ys
 
 
 def greedy_search(model, source: Tensor):

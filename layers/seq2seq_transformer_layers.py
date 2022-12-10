@@ -1,4 +1,5 @@
 import math
+
 import torch
 import torch.nn as nn
 
@@ -29,4 +30,5 @@ class TokenEmbedding(nn.Module):
         self.emb_size = emb_size
 
     def forward(self, tokens: torch.Tensor):
-        return self.embedding(tokens.long()) * math.sqrt(self.emb_size)
+        x = self.embedding(tokens.long()) * math.sqrt(self.emb_size)
+        return x

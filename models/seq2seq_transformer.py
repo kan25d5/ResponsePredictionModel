@@ -4,10 +4,9 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from layers.seq2seq_transformer_layers import (PositionalEncoding,
-                                               TokenEmbedding)
 from torch import Tensor
-from torchmetrics import Accuracy
+
+from layers.seq2seq_transformer_layers import PositionalEncoding, TokenEmbedding
 from utilities.decode import beam_search, greedy_search
 
 
@@ -27,6 +26,7 @@ class Seq2Seq(pl.LightningModule):
         eos_idx=2,
         learning_ratio=0.0001,
         beam_size=20,
+        top_k=20,
     ) -> None:
         super().__init__()
 
@@ -41,6 +41,7 @@ class Seq2Seq(pl.LightningModule):
         self.eos_idx = eos_idx
         self.learning_ratio = learning_ratio
         self.beam_size = beam_size
+        self.top_k = top_k
 
         # レイヤーの定義
         self.src_tok_emb = TokenEmbedding(
@@ -63,9 +64,6 @@ class Seq2Seq(pl.LightningModule):
         # 損失関数の定義
         self.criterion = nn.CrossEntropyLoss(ignore_index=self.padding_idx)
 
-        # 評価手法
-        self.test_acc = Accuracy()
-
     def _training(self, source: Tensor, target: Tensor):
         tgt_input = target[:-1, :]
         src_emb_pe = self.pe(self.src_tok_emb(source))
@@ -79,15 +77,12 @@ class Seq2Seq(pl.LightningModule):
 
         return out
 
-    def _predict(self, source: Tensor):
-        if self.beam_size > 0:
-            return beam_search(self, source)
-        else:
-            return greedy_search(self, source)
-
     def forward(self, source: Tensor, target: Tensor = None):
         if target is None:
-            return self._predict(source)
+            if self.beam_size > 0:
+                return beam_search(self, source)
+            else:
+                return greedy_search(self, source)
         else:
             return self._training(source, target)
 
@@ -129,7 +124,7 @@ class Seq2Seq(pl.LightningModule):
         preds = self.forward(x, t)
 
         loss = self.compute_loss(preds, tgt_out)
-        self.log("train_loss", value=loss)
+        self.log("train_loss", loss, on_step=False, on_epoch=True)
 
         return loss
 
@@ -139,7 +134,7 @@ class Seq2Seq(pl.LightningModule):
         preds = self.forward(x, t)
         loss = self.compute_loss(preds, tgt_out)
 
-        self.log("val_loss", value=loss)
+        self.log("val_loss", loss, on_step=False, on_epoch=True)
         return loss
 
     def test_step(self, batch: Tuple[Tensor, Tensor], batch_idx: int):

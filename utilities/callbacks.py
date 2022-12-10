@@ -1,87 +1,48 @@
+from typing import List
+
 import pytorch_lightning as pl
+import torch
 from pytorch_lightning.callbacks import Callback
-from torch.utils.data import DataLoader
-from vocab.twitter_vocab import TwitterVocab
+from torchtext.vocab import Vocab
 
 
-class DisplaySystenResponses(Callback):
+class DisplayPredictedResponse(Callback):
     def __init__(
-        self,
-        vocab: TwitterVocab,
-        dataloader_train_callback: DataLoader,
-        val_callback_dataloader: DataLoader,
-        filename="base",
-        trial=None,
+        self, source_vocab: Vocab, target_vocab: Vocab, test_callback_dataloader, display_count=10
     ) -> None:
         super().__init__()
+        self.source_vocab = source_vocab
+        self.target_vocab = target_vocab
+        self.display_count = display_count
+        self.test_callback_dataloader = test_callback_dataloader
 
-        self.vocab = vocab
-        self.trial = trial
-        self.filename = filename
-        self.dataloader_train_callback = dataloader_train_callback
-        self.val_callback_dataloader = val_callback_dataloader
+    def get_predited_response(self, model):
+        result_list = []
 
-        if self.trial is not None:
-            f = open("assets/log/" + self.filename + ".txt", "a")
-            f.write("=" * 40 + " \n")
-            f.write(f"{self.trial.number}_trial\n")
-            f.write("parameter infomation : \n")
-            for k, v in self.trial.params.items():
-                f.write("\t{} : {:.6f}\n".format(k, v))
-            f.close()
+        for idx, (src, tgt) in enumerate(self.test_callback_dataloader):
+            if idx >= self.display_count:
+                break
 
-    def display_responses(self, dataloader, pl_module):
-        results = []
-
-        for idx, (src, tgt) in enumerate(dataloader):
-            pred = pl_module(src.to("cuda")).to("cpu")
+            pred = model(src.to("cuda")).to("cpu").type(torch.LongTensor)
 
             src = [item[0] for item in src.tolist() if item[0] != 0]
             tgt = [item[0] for item in tgt.tolist() if item[0] != 0]
             pred = [item[0] for item in pred.tolist() if item[0] != 0]
 
-            result = {
-                "source": self.vocab.vocab_X.decode(src[1:-1]),
-                "target": self.vocab.vocab_y.decode(tgt[1:-1]),
-                "pred": self.vocab.vocab_y.decode(pred[1:-1]),
-            }
-            results.append(result)
+            src = self.source_vocab.lookup_tokens(src)
+            tgt = self.target_vocab.lookup_tokens(tgt)
+            pred = self.target_vocab.lookup_tokens(pred)
 
-            print("発話：{}".format(result["source"]))
-            print("教師応答：{}".format(result["target"]))
-            print("システム応答：{}".format(result["pred"]))
+            result = {"source": "".join(src), "target": "".join(tgt), "pred": "".join(pred)}
+            result_list.append(result)
+        return result_list
+
+    def display_predicted_response(self, result: List[dict]):
+        for item in result:
+            for key, value in item.items():
+                print("{} : {}".format(key, value))
             print("-" * 20)
 
-            if idx >= 8:
-                break
-        print("=" * 20)
-
-        return results
-
-    def save_txt(self, results, trainer, data_type: str):
-        f = open("assets/log/" + self.filename + ".txt", "a")
-
-        f.write(f"{trainer.current_epoch} epochs.\n")
-        f.write(f"data type {data_type}.\n")
-
-        for result in results:
-            f.write("source : {}\n".format(result["source"]))
-            f.write("target : {}\n".format(result["target"]))
-            f.write("pred : {}\n".format(result["pred"]))
-
-        f.write("============================================\n")
-        f.close()
-
-    def on_train_epoch_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        print("\n\n")
-        print(f"{trainer.current_epoch}エポックにおける，訓練データ中の応答生成結果:\n")
-        results = self.display_responses(self.dataloader_train_callback, pl_module)
-        self.save_txt(results, trainer, "train")
-
-    def on_validation_epoch_end(
-        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"
-    ) -> None:
-        print("\n\n")
-        print(f"{trainer.current_epoch}エポックにおける，検証データ中の応答生成結果:\n")
-        results = self.display_responses(self.val_callback_dataloader, pl_module)
-        self.save_txt(results, trainer, "val")
+    def on_validation_epoch_end(self, trainer: "pl.Trainer", model: "pl.LightningModule") -> None:
+        result = self.get_predited_response(model)
+        self.display_predicted_response(result)
