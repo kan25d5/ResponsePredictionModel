@@ -119,6 +119,7 @@ def get_model(args):
 
 
 def get_trainer(args, test_callback_dataloader):
+    strategy = args.strategy if args.strategy != "None" and args.devices > 1 else None
     logger = TensorBoardLogger(os.path.join(os.getcwd(), "logs/"), args.sentiment_type)
     callbacks = [
         ModelCheckpoint(
@@ -134,7 +135,7 @@ def get_trainer(args, test_callback_dataloader):
         devices=args.devices,
         max_epochs=args.max_epoch,
         accelerator=args.accelerator,
-        strategy=args.strategy if args.strategy != "" or args.strategy != "None" else None,
+        strategy=strategy,
     )
 
     return trainer

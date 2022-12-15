@@ -4,8 +4,8 @@ import unicodedata
 import emoji
 import neologdn
 from MeCab import Tagger
+from assets.constant import USER_DICT
 
-USER_DICT = "/home/s2110184/opt/mecab/lib/mecab/dic/mecab-ipadic-neologd"
 
 # ref :
 # https://qiita.com/sanma_ow/items/b49b39ad5699bbcac0e9
@@ -24,7 +24,10 @@ REMOVE_CHARS = ["�", "\n"]
 class TwitterTransform(object):
     def __init__(self, is_wakati=False) -> None:
         self.is_wakati = is_wakati
-        self.tagger = Tagger("-Owakati -d {}".format(USER_DICT))
+        if USER_DICT == "":
+            self.tagger = Tagger("-Owakati")
+        else:
+            self.tagger = Tagger("-Owakati -d {}".format(USER_DICT))
         self.re_removes = [re.compile(pattern) for pattern in RE_PATTERNS]
 
     def __call__(self, text: str):
