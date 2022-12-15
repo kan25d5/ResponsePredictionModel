@@ -10,7 +10,7 @@ from layers.seq2seq_transformer_layers import PositionalEncoding, TokenEmbedding
 from utilities.decode import beam_search, greedy_search
 
 
-class Seq2Seq(pl.LightningModule):
+class Seq2SeqTransformer(pl.LightningModule):
     def __init__(
         self,
         src_vocab_size: int,
@@ -111,30 +111,27 @@ class Seq2Seq(pl.LightningModule):
         loss = self.criterion(preds, target)
         return loss
 
-    def compute_acc(self, preds: Tensor, target: Tensor, acc):
-        preds = preds.reshape(-1, preds.shape[-1])
-        target = target.reshape(-1)
-        return acc(preds, target)
-
     def training_step(self, batch: Tuple[Tensor, Tensor], batch_idx: int):
         self.train()
 
         x, t = batch
         tgt_out = t[1:, :]
+        batch_size = x.size(1)
         preds = self.forward(x, t)
 
         loss = self.compute_loss(preds, tgt_out)
-        self.log("train_loss", loss, on_step=False, on_epoch=True)
+        self.log("train_loss", loss, batch_size=batch_size)
 
         return loss
 
     def validation_step(self, batch: Tuple[Tensor, Tensor], batch_idx: int):
         x, t = batch
         tgt_out = t[1:, :]
+        batch_size = x.size(1)
         preds = self.forward(x, t)
         loss = self.compute_loss(preds, tgt_out)
 
-        self.log("val_loss", loss, on_step=False, on_epoch=True)
+        self.log("val_loss", loss, batch_size=batch_size)
         return loss
 
     def test_step(self, batch: Tuple[Tensor, Tensor], batch_idx: int):

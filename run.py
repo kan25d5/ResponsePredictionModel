@@ -58,7 +58,7 @@ parser.add_argument(
 )
 parser.add_argument("-len", "--maxlen", help=help_maxlen, type=int, default=MAXLEN)
 parser.add_argument("-bt", "--batch_size", help=help_batch_size, type=int, default=BATCH_SIZE)
-parser.add_argument("-ep", "--max_epochs", help=help_max_epoch, type=int, default=EPOCH_SIZE)
+parser.add_argument("-ep", "--max_epoch", help=help_max_epoch, type=int, default=EPOCH_SIZE)
 parser.add_argument("-vs", "--vocab_size", help=help_vocab_size, type=int, default=VOCAB_SIZE)
 parser.add_argument("-lr", "--learning_ratio", type=float, default=1e-5)
 parser.add_argument("--strategy", type=str, default=STRATEGY)
