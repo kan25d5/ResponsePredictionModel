@@ -79,7 +79,7 @@ class Seq2SeqTransformer(pl.LightningModule):
 
     def forward(self, source: Tensor, target: Tensor = None):
         if target is None:
-            if self.beam_size > 0:
+            if self.beam_size > 1:
                 return beam_search(self, source)
             else:
                 return greedy_search(self, source)
