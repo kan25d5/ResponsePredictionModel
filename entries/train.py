@@ -15,6 +15,7 @@ from utilities.training_functions import (
     get_transform,
     load_vocabs,
 )
+from utilities.utility_functions import init_boilerplate
 
 CHECK_POINT = "assets/checkpoint/persona.ckpt"
 CHECK_POINT_NEU = "assets/checkpoint/neu.ckpt"
@@ -22,30 +23,6 @@ CHECK_POINT_NEU = "assets/checkpoint/neu.ckpt"
 # フィールド変数
 source_vocab: Vocab
 target_vocab: Vocab
-
-
-def _init_boilerplate(args):
-    # --------------------------------------
-    # Reference:
-    # https://stackoverflow.com/questions/30791550/limit-number-of-threads-in-numpy/31622299#31622299
-    # --------------------------------------
-    import os
-
-    os.environ["MKL_NUM_THREADS"] = "0"
-    os.environ["NUMEXPR_NUM_THREADS"] = "1"
-    os.environ["OMP_NUM_THREADS"] = "1"
-
-    # ------------------------------------
-    # Reference:
-    # https://github.com/Lightning-AI/lightning/issues/1314#issuecomment-706607614
-    # ------------------------------------
-    device_count = args.devices
-    if device_count <= 0:
-        raise ValueError("デバイスの指定が0以下です．--device={}".format(device_count))
-    elif device_count == 1:
-        os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-    else:
-        os.environ["CUDA_VISIBLE_DEVICES"] = ",".join([str(i) for i in range(device_count)])
 
 
 def check_dataloader(dataloader):
@@ -128,7 +105,9 @@ def get_trainer(args, test_callback_dataloader):
     logger = TensorBoardLogger(os.path.join(os.getcwd(), "logs/"), args.sentiment_type)
     callbacks = [
         ModelCheckpoint(
-            dirpath="assets/checkpoint", filename=args.sentiment_type, monitor="val_loss"
+            dirpath="assets/checkpoint",
+            filename=args.sentiment_type,
+            monitor="val_loss",
         ),
         EarlyStopping(monitor="val_loss", patience=args.patience),
         DisplayPredictedResponse(source_vocab, target_vocab, test_callback_dataloader),
@@ -151,7 +130,7 @@ def train(args):
     assert torch.cuda.is_available(), "GPUが認識されていない"
 
     # おまじないコード
-    _init_boilerplate(args)
+    init_boilerplate(args.devices)
 
     # データローダーを取得する
     all_dataloader = training_data_pipeline(args)
@@ -168,5 +147,7 @@ def train(args):
     trainer = get_trainer(args, test_callback_dataloader)
 
     # モデルをトレーニング
-    trainer.fit(model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
+    trainer.fit(
+        model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader
+    )
     trainer.test(model, test_dataloader)

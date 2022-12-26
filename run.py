@@ -52,14 +52,20 @@ help_params = "ハイパーパラメーター値の指定．jsonファイルへ�
 
 # コマンドライン引数の追加
 parser.add_argument("mode", help=help_mode, type=str)
-parser.add_argument("devices", type=int, help=help_devices)
+parser.add_argument("--devices", default=DEVICES, type=int, help=help_devices)
 parser.add_argument(
     "-st", "--sentiment_type", help=help_sentimet, type=str, default=SENTIMENT_TYPE
 )
 parser.add_argument("-len", "--maxlen", help=help_maxlen, type=int, default=MAXLEN)
-parser.add_argument("-bt", "--batch_size", help=help_batch_size, type=int, default=BATCH_SIZE)
-parser.add_argument("-ep", "--max_epoch", help=help_max_epoch, type=int, default=EPOCH_SIZE)
-parser.add_argument("-vs", "--vocab_size", help=help_vocab_size, type=int, default=VOCAB_SIZE)
+parser.add_argument(
+    "-bt", "--batch_size", help=help_batch_size, type=int, default=BATCH_SIZE
+)
+parser.add_argument(
+    "-ep", "--max_epoch", help=help_max_epoch, type=int, default=EPOCH_SIZE
+)
+parser.add_argument(
+    "-vs", "--vocab_size", help=help_vocab_size, type=int, default=VOCAB_SIZE
+)
 parser.add_argument("-lr", "--learning_ratio", type=float, default=1e-5)
 parser.add_argument("--strategy", type=str, default=STRATEGY)
 parser.add_argument("--accelerator", type=str, default=ACCELERATOR)
@@ -81,7 +87,9 @@ def main():
 
         train(args)
     elif run_mode == "pred":
-        pass
+        from entries.pred import preds
+
+        preds(args)
     elif run_mode == "make_corpus":
         from entries.make_vocab import make_vocab
 
