@@ -137,10 +137,11 @@ class Seq2SeqTransformer(pl.LightningModule):
     def test_step(self, batch: Tuple[Tensor, Tensor], batch_idx: int):
         x, t = batch
         tgt_out = t[1:, :]
+        batch_size = x.size(1)
         preds = self.forward(x, t)
 
         loss = self.compute_loss(preds, tgt_out)
-        self.log("test_loss", value=loss)
+        self.log("test_loss", value=loss, batch_size=batch_size)
 
         return loss
 

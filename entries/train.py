@@ -17,6 +17,7 @@ from utilities.training_functions import (
 )
 
 CHECK_POINT = "assets/checkpoint/persona.ckpt"
+CHECK_POINT_NEU = "assets/checkpoint/neu.ckpt"
 
 # フィールド変数
 source_vocab: Vocab
@@ -113,8 +114,12 @@ def get_model(args):
 
     model = Seq2SeqTransformer(src_vocab_size, tgt_vocab_size, beam_size=args.beam_size)
     if args.sentiment_type != "persona":
-        # personaモデルのトレーニング以外はファインチューニングする
-        model.load_state_dict(torch.load(CHECK_POINT)["state_dict"])
+        if args.sentiment_type == "pos" or args.sentiment_type == "neg":
+            model.load_state_dict(torch.load(CHECK_POINT_NEU)["state_dict"])
+        elif args.sentiment_type == "neu":
+            model.load_state_dict(torch.load(CHECK_POINT)["state_dict"])
+        else:
+            pass
     return model
 
 
