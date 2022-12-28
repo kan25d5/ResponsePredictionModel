@@ -85,7 +85,7 @@ def display_result(src, tgt, pred, pred2=None):
     if pred2 is not None:
         pred2 = [item[0] for item in pred2.tolist() if item[0] != 0]
         pred2 = target_vocab.lookup_tokens(pred2)
-        result.update({"pred2": pred2})
+        result.update({"pred2": "".join(pred2)})
 
     return result
 
