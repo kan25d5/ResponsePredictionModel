@@ -10,6 +10,7 @@ from utilities.training_functions import (
     get_transform,
     load_vocabs,
 )
+from utilities.transform import TwitterTransform
 from utilities.utility_functions import init_boilerplate
 
 source_vocab: Vocab
@@ -122,7 +123,7 @@ def display_dataloader_neu(dataloader_neu, model_pos, model_neg, display_count=1
             break
 
 
-def preds(args):
+def preds_dataloader(args):
     init_boilerplate(args.devices)
     all_dataloader = get_predict_pipline()
     dataloader_pos = all_dataloader[0]
@@ -150,3 +151,58 @@ def preds(args):
     print("次に、neuのソースからpos/negモデルでの応答を見る")
     print("=" * 30)
     display_dataloader_neu(dataloader_neu, model_pos, model_neg, display_count=500)
+
+
+def pred_dialog(args):
+    global source_vocab, target_vocab
+
+    init_boilerplate(args.devices)
+
+    source_vocab, target_vocab = load_vocabs()
+    source_transform, target_transform = get_transform(source_vocab, target_vocab)
+    transform = TwitterTransform(is_wakati=True)
+
+    model_pos = get_model(args, "pos")
+    model_neg = get_model(args, "neg")
+    # model_neu = get_model(args, "neu")
+
+    def get_source(input_str: str):
+        source = transform(input_str).split()
+        source = source_transform(source)
+        source = torch.LongTensor([[s] for s in source])
+        return source
+
+    def display_dialog(src, pred_pos: torch.Tensor, pred_neg: torch.Tensor):
+        pred_pos = pred_pos.type(torch.int32)
+        pred_neg = pred_neg.type(torch.int32)
+
+        src = [item[0] for item in src.tolist() if item[0] != 0]
+        pred_pos = [item[0] for item in pred_pos.tolist() if item[0] != 0]
+        pred_neg = [item[0] for item in pred_neg.tolist() if item[0] != 0]
+
+        src = source_vocab.lookup_tokens(src)
+        pred_pos = target_vocab.lookup_tokens(pred_pos)
+        pred_neg = target_vocab.lookup_tokens(pred_neg)
+
+        result = {
+            "source": "".join(src),
+            "pred_pos": "".join(pred_pos),
+            "pred_neg": "".join(pred_neg),
+        }
+        return result
+
+    input_str = input(" ->")
+    while input_str != "":
+        source = get_source(input_str)
+        pred_pos = model_pos(source)
+        pred_neg = model_neg(source)
+        result = display_dialog(source, pred_pos, pred_neg)
+        for k, v in result.items():
+            print("{} : {}".format(k, v))
+        print("-" * 20)
+
+        input_str = input(" ->")
+
+
+def preds(args):
+    pred_dialog(args)
