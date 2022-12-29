@@ -90,14 +90,18 @@ def main():
         from entries.pred import preds
 
         preds(args)
-    elif run_mode == "make_corpus":
+    elif run_mode == "make_vocab":
         from entries.make_vocab import make_vocab
 
         make_vocab(args)
-    elif run_mode == "load_corpus":
+    elif run_mode == "load_vocab":
         from entries.make_vocab import load_vocab
 
         load_vocab()
+    elif run_mode == "make_corpus":
+        from entries.make_corpus import make_corpus
+
+        make_corpus()
     else:
         raise ValueError("modeの引数が不正．--helpを参照．")
 

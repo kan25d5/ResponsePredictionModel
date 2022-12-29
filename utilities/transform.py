@@ -63,7 +63,7 @@ class TwitterTransform(object):
             kaomoji_idx = [i for i, w in enumerate(words) if len(w) >= kaomoji_len]
             for i in kaomoji_idx:
                 kaomoji = words[i]
-                if len(words) <= i:
+                if len(words) - 1 <= i:
                     continue
                 if words[i - 1] in KAOMOJI_HANDS and 0 < i:
                     kaomoji = words[i - 1] + kaomoji
@@ -119,4 +119,4 @@ class TwitterTransform(object):
         return text
 
     def __call__(self, text: str, use_parser="nagisa"):
-        self.transform_and_wakati(text, use_parser)
+        return self.transform_and_wakati(text, use_parser)
