@@ -164,7 +164,7 @@ def pred_dialog(args):
 
     model_pos = get_model(args, "pos")
     model_neg = get_model(args, "neg")
-    # model_neu = get_model(args, "neu")
+    model_neu = get_model(args, "neu")
 
     def get_source(input_str: str):
         source = transform(input_str).split()
@@ -172,31 +172,40 @@ def pred_dialog(args):
         source = torch.LongTensor([[s] for s in source])
         return source
 
-    def display_dialog(src, pred_pos: torch.Tensor, pred_neg: torch.Tensor):
+    def display_dialog(
+        src, pred_pos: torch.Tensor, pred_neg: torch.Tensor, pred_neu: torch.Tensor
+    ):
         pred_pos = pred_pos.type(torch.int32)
         pred_neg = pred_neg.type(torch.int32)
+        pred_neu = pred_neu.type(torch.int32)
 
         src = [item[0] for item in src.tolist() if item[0] != 0]
         pred_pos = [item[0] for item in pred_pos.tolist() if item[0] != 0]
         pred_neg = [item[0] for item in pred_neg.tolist() if item[0] != 0]
+        pred_neu = [item[0] for item in pred_neu.tolist() if item[0] != 0]
 
         src = source_vocab.lookup_tokens(src)
         pred_pos = target_vocab.lookup_tokens(pred_pos)
         pred_neg = target_vocab.lookup_tokens(pred_neg)
+        pred_neu = target_vocab.lookup_tokens(pred_neu)
 
         result = {
             "source": "".join(src),
             "pred_pos": "".join(pred_pos),
             "pred_neg": "".join(pred_neg),
+            "pred_neu": "".join(pred_neu),
         }
         return result
 
     input_str = input(" ->")
     while input_str != "":
         source = get_source(input_str)
+
         pred_pos = model_pos(source)
         pred_neg = model_neg(source)
-        result = display_dialog(source, pred_pos, pred_neg)
+        pred_neu = model_neu(source)
+
+        result = display_dialog(source, pred_pos, pred_neg, pred_neu)
         for k, v in result.items():
             print("{} : {}".format(k, v))
         print("-" * 20)
