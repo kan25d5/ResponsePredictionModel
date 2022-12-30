@@ -1,88 +1,118 @@
-import glob
+import json
 import os
+from glob import glob
 from multiprocessing import Process, Queue
+from typing import List
 
 from tqdm import tqdm
 
 from utilities.transform import TwitterTransform
 from utilities.utility_functions import load_json, save_json
 
-NUM_WORKS = os.cpu_count() - 1
 CORPUS_FOLDER = "/home/s2110184/dataset/dialog_from_twitter_formatting/*.json"
+NUM_WORKER = os.cpu_count() - 1
+MIN_LEN = 3
+MAX_LEN = 120
 
+# Class for text preprocessing
 transform = TwitterTransform()
 
 
 def split_list(l_, n_):
-    return zip(*[iter(l_)] * n_)
+    """Divide the list(l_) by N(n_) elements each."""
+    return list(zip(*[iter(l_)] * n_))
 
 
-def _make_all_corpus_one_process(filepath: str, queue: Queue):
+def _get_corpus(filepath: str, queue: Queue = None):
+    """コーパスファイルをロードして、コーパス中の発話リスト、応答リストを返す。
+    load dialogue corpus file, and return messagelist and response list
+
+    Args:
+        filepath (str): コーパスファイルパス. corpus file path.
+        queue (Queue, optional): queue. Defaults to None.
+
+    Return:
+        result (corpus_msg, corpus_res): 発話リストと応答リストのタプル。
+            Tuple of message list and response list.
+    """
+
+    # message and response list in the
+    #   dialogue corpus file.
     corpus_msg = []
     corpus_res = []
-    corpus = load_json(filepath)
+
+    try:
+        corpus = load_json(filepath)
+    except json.JSONDecodeError:
+        if queue is None:
+            return (corpus_msg, corpus_res)
+        else:
+            queue.put((corpus_msg, corpus_res))
+
+    if len(corpus) <= 0:
+        if queue is None:
+            return (corpus_msg, corpus_res)
+        else:
+            queue.put((corpus_msg, corpus_res))
 
     for dialogue in corpus:
+        if len(dialogue) <= 0:
+            continue
+
         for i in range(len(dialogue) - 1):
+            # pop the message and response
             msg = dialogue[i]["text"]
             res = dialogue[i + 1]["text"]
 
+            # preprocess text (remove debris chars etc).
             msg = transform(msg, use_parser="")
             res = transform(res, use_parser="")
 
+            if len(msg) <= MIN_LEN or len(res) <= MIN_LEN:
+                continue
+            if len(msg) > MAX_LEN or len(res) > MAX_LEN:
+                continue
+
+            # set the message and response in the each list
             corpus_msg.append(msg)
             corpus_res.append(res)
 
-    queue.put((corpus_msg, corpus_res))
+        # the list size of message and response dont match
+        assert len(corpus_msg) == len(corpus_res), "発話と応答のリストサイズが一致しない。"
 
-
-def _make_all_corpus_multi_process(corpus_split):
-    multi_result_msg = []
-    multi_result_res = []
-    process_list = []
-    queue_list = []
-
-    for filepath in corpus_split:
-        queue = Queue()
-        process = Process(target=_make_all_corpus_one_process, args=(filepath, queue))
-        process.start()
-        process_list.append(process)
-        queue_list.append(queue)
-
-    for process, queue in zip(process_list, queue_list):
-        process.join()
-        corpus_msg, corpus_res = queue.get()
-        multi_result_msg.extend(corpus_msg)
-        multi_result_res.extend(corpus_res)
-
-    print("\tcorpus_msg : {}".format(corpus_msg))
-    print("\tcorpus_res : {}".format(corpus_res))
-
-    return multi_result_msg, multi_result_res
+    if queue is None:
+        return (corpus_msg, corpus_res)
+    else:
+        queue.put((corpus_msg, corpus_res))
 
 
 def make_all_corpus():
-    messages = []
-    responses = []
+    i = 0
+    all_turns_count = 0
+    corpus_files = list(glob(CORPUS_FOLDER))
+    corpus_split_files = split_list(corpus_files, NUM_WORKER)
 
-    # コーパスファイル全体のリスト
-    corpus_file_list = glob.glob(CORPUS_FOLDER)
-    # コーパスファイルをNUM_WORKSの数ずつ分割する
-    corpus_split_list = list(split_list(corpus_file_list, NUM_WORKS))
+    for corpus_split in tqdm(corpus_split_files):
+        messages = []
+        responses = []
 
-    # len(corpus_file_list) / NUM_WORKS 分だけのループ
-    for corpus_split in tqdm(corpus_split_list):
-        multi_result_msg, multi_result_res = _make_all_corpus_multi_process(
-            corpus_split
-        )
-        messages.extend(multi_result_msg)
-        responses.extend(multi_result_res)
+        for idx, filepath in enumerate(corpus_split):
+            print("transform in process {} / {}".format(idx, len(corpus_split)))
+            print("\tloading {}".format(filepath))
 
-        assert len(messages) == len(responses), "発話と応答のリストサイズが不一致。"
-        print("Number of turn : {}".format(len(messages)))
+            result = _get_corpus(filepath)
+            corpus_msg, corpus_res = result
 
-    result = {"messages": messages, "responses": responses}
-    save_json(result, "assets/corpus/json/all.json")
+            messages.extend(corpus_msg)
+            responses.extend(corpus_res)
+            assert len(messages) == len(responses), "発話リストと応答リストサイズが一致しない。"
+            print("\tturn : {}".format(len(messages)))
+            all_turns_count += len(messages)
+
+        result = {"X": messages, "y": responses}
+        filepath = f"assets/corpus/json/all/{i}.json"
+        save_json(result, filepath)
+        i += 1
 
 
 def make_corpus():
