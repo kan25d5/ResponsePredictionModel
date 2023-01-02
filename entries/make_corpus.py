@@ -19,25 +19,10 @@ transform = TwitterTransform(is_wakati=False)
 
 
 def split_list(l_, n_):
-    """Divide the list(l_) by N(n_) elements each."""
     return list(zip(*[iter(l_)] * n_))
 
 
 def _get_corpus(filepath: str, queue: Queue = None):
-    """コーパスファイルをロードして、コーパス中の発話リスト、応答リストを返す。
-    load dialogue corpus file, and return messagelist and response list
-
-    Args:
-        filepath (str): コーパスファイルパス. corpus file path.
-        queue (Queue, optional): queue. Defaults to None.
-
-    Return:
-        result (corpus_msg, corpus_res): 発話リストと応答リストのタプル。
-            Tuple of message list and response list.
-    """
-
-    # message and response list in the
-    #   dialogue corpus file.
     corpus_msg = []
     corpus_res = []
 
@@ -60,11 +45,9 @@ def _get_corpus(filepath: str, queue: Queue = None):
             continue
 
         for i in range(len(dialogue) - 1):
-            # pop the message and response
             msg = dialogue[i]["text"]
             res = dialogue[i + 1]["text"]
 
-            # preprocess text (remove debris chars etc).
             msg = transform(msg)
             res = transform(res)
 
@@ -73,11 +56,9 @@ def _get_corpus(filepath: str, queue: Queue = None):
             if len(msg) > MAX_LEN or len(res) > MAX_LEN:
                 continue
 
-            # set the message and response in the each list
             corpus_msg.append(msg)
             corpus_res.append(res)
 
-        # the list size of message and response dont match
         assert len(corpus_msg) == len(corpus_res), "発話と応答のリストサイズが一致しない。"
 
     if queue is None:
