@@ -15,7 +15,7 @@ MIN_LEN = 3
 MAX_LEN = 120
 
 # Class for text preprocessing
-transform = TwitterTransform()
+transform = TwitterTransform(is_wakati=False)
 
 
 def split_list(l_, n_):
@@ -65,8 +65,8 @@ def _get_corpus(filepath: str, queue: Queue = None):
             res = dialogue[i + 1]["text"]
 
             # preprocess text (remove debris chars etc).
-            msg = transform(msg, use_parser="")
-            res = transform(res, use_parser="")
+            msg = transform(msg)
+            res = transform(res)
 
             if len(msg) <= MIN_LEN or len(res) <= MIN_LEN:
                 continue
