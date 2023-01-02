@@ -3,9 +3,9 @@ import unicodedata
 
 import emoji
 import MeCab
-import nagisa
 import neologdn
-from nagisa.tagger import Tagger
+
+from utilities.utility_functions import load_json
 
 # Twitter固有の不要文字パターン
 PATTERN_TWITTER = [
@@ -35,6 +35,22 @@ REMOVE_CHARS = [
     ")))",
     "*˘ ³˘)〜♥",
     "ε｀　)",
+    "▄【┻┳══ー",
+    "⊂二二二二⊃",
+    "(*'ω'ノノ゙☆",
+    "ς",
+    "↜⃕ψ",
+    "!!⊃≡゚゚",
+    "∵.∵",
+    "↜⃕",
+    "ヽノ",
+    "=3=3=3",
+    "≡≡≡≡≡ヘノニゲロ!!",
+    "ノ)`-')\"",
+    "-o)`з́)-o)`з́)",
+    "-o)`з́)",
+    "‧o·‧o·̊└┘",
+    "。゚゚。",
 ]
 # 想定顔文字数
 KAOMOJI_LENS = [4, 5, 6, 7]
@@ -42,6 +58,8 @@ KAOMOJI_LENS = [4, 5, 6, 7]
 KAOMOJI_HANDS = ["ノ", "ヽ", "∑", "m", "O", "o", "┐", "/", "\\", "┌", "٩", "و", "p", "q"]
 # MeCab
 MECAB_TAGGER = "-Owakati -d/home/s2110184/usr/mecab-ipadic-neologd"
+# 顔文字辞書
+KAOMOJI_DICT = "/home/s2110184/project/ResponsePredictionModel/assets/dict/kaomoji.json"
 
 
 class TwitterTransform(object):
@@ -50,8 +68,11 @@ class TwitterTransform(object):
         self.parse = MeCab.Tagger(MECAB_TAGGER).parse
         self.pattern_twitter = [re.compile(r) for r in PATTERN_TWITTER]
         self.pattern_kaomoji = [re.compile(r) for r in PATTERN_KAOMOJI]
+        self.kaomoji_dic = load_json(KAOMOJI_DICT)
 
     def remove_deburis(self, text: str):
+        for kaomoji in self.kaomoji_dic:
+            text = text.replace(kaomoji, "")
         for kaomoji in self.pattern_kaomoji:
             text = kaomoji.sub("", text)
         for twitter in self.pattern_twitter:
