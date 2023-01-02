@@ -69,7 +69,9 @@ class TwitterTransform(object):
         return text
 
     def wakati(self, text):
-        return self.parse(text)
+        if self.is_wakati:
+            text = self.parse(text)
+        return text
 
     def preprocess(self, text: str):
         text = text.replace("�", "")
