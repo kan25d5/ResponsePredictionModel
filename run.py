@@ -98,6 +98,10 @@ def main():
         from entries.make_vocab import load_vocab
 
         load_vocab()
+    elif run_mode == "make_corpus":
+        from entries.make_corpus import make_corpus
+
+        make_corpus()
     else:
         raise ValueError("modeの引数が不正．--helpを参照．")
 
