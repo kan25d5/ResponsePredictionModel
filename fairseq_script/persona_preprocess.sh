@@ -1,0 +1,12 @@
+fairseq-preprocess \
+--trainpref ./assets/japanese-dialog-transformers/data/personal/raw/train \
+--validpref ./assets/japanese-dialog-transformers/data/personal/raw/valid \
+--testpref ./assets/japanese-dialog-transformers/data/personal/raw/test \
+--source-lang src \
+--target-lang dst \
+--destdir ./assets/japanese-dialog-transformers/data/personal/bin \
+--tokenizer space \
+--nwordstgt 31998 \
+--nwordssrc 31998 \
+--srcdict ./assets/japanese-dialog-transformers/data/dicts/sp_oall_32k.txt \
+--tgtdict ./assets/japanese-dialog-transformers/data/dicts/sp_oall_32k.txt \

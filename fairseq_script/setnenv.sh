@@ -1,0 +1,8 @@
+echo "setenv MKL_NUM_THREADS 0"
+setenv MKL_NUM_THREADS 0
+echo "setenv NUMEXPR_NUM_THREADS 1"
+setenv NUMEXPR_NUM_THREADS 1
+echo "setenv OMP_NUM_THREADS 1"
+setenv OMP_NUM_THREADS 1
+echo "setenv CUDA_VISIBLE_DEVICES 0,1"
+setenv CUDA_VISIBLE_DEVICES 0,1
