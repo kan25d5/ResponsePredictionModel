@@ -19,6 +19,7 @@ class TwitterTransform(object):
         self.is_wakati = is_wakati
 
     def remove_deburis(self, text: str):
+        text = text.replace("�", "")
         for r in self.re_twitter:
             text = r.sub("", text)
         for pair in PATTERN_TWITTER_REPLACE:
@@ -26,7 +27,7 @@ class TwitterTransform(object):
         text = emoji.replace_emoji(text)
         return text
 
-    def _round_period(text: str):
+    def _round_period(self, text: str):
         while True:
             if "。。" not in text:
                 return text
@@ -41,7 +42,6 @@ class TwitterTransform(object):
         return text
 
     def preprocess(self, text: str):
-        text = text.replace("�", "")
         text = self.normalize(text)
         text = self.remove_deburis(text)
         return text
